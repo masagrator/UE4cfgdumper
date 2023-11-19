@@ -214,5 +214,13 @@ std::unordered_map<std::string, std::string> alternativeDescriptions1 = {
 	{"rhi.SyncInterval",									"Determines the frequency of VSyncs in supported RHIs.  0 - Unlocked\n"
 															"  1 - 60 Hz (16.66 ms)\n"
 															"  2 - 30 Hz (33.33 ms)\n"
-															"  3 - 20 Hz (50.00 ms)\n"}
+															"  3 - 20 Hz (50.00 ms)\n"},
+
+	{"r.Tonemapper.Sharpen",								"Sharpening in the tonemapper (not for ES2), actual implementation is work in progress, clamped at 10\n"
+															"   0: off(default)\n"
+															" 0.5: half strength\n"
+															"   1: full strength"},
+	
+	{"r.Mobile.ShadingPath",								"0: Forward shading (default)\n"
+															"1: Deferred shading"}
 };
