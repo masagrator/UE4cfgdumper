@@ -266,7 +266,7 @@ void dumpAsCheats() {
 	mkdir("sdmc:/switch/UE4cfgdumper/", 777);
 	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/", cheatMetadata.title_id);
 	mkdir(path, 777);
-	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.txt", cheatMetadata.title_id, BID);
+	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.txt", cheatMetadata.title_id, __builtin_bswap64(BID));
 	FILE* text_file = fopen(path, "w");
 	if (!text_file) {
 		printf("Couldn't create cheat file!");
@@ -304,7 +304,7 @@ void dumpAsLog() {
 	mkdir("sdmc:/switch/UE4cfgdumper/", 777);
 	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/", cheatMetadata.title_id);
 	mkdir(path, 777);
-	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.log", cheatMetadata.title_id, BID);	
+	snprintf(path, sizeof(path), "sdmc:/switch/UE4cfgdumper/%016lX/%016lX.log", cheatMetadata.title_id, __builtin_bswap64(BID));	
 	FILE* text_file = fopen(path, "w");
 	if (!text_file) {
 		printf("Couldn't create log file!");
