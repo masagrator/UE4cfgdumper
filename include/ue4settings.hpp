@@ -197,5 +197,13 @@ std::array settingsArray = {
 															" 1: override secondary screen percentage.", 2},
 	
 	UE4Setting{"r.VSync", 									"0: VSync is disabled.(default)\n"
-															"1: VSync is enabled.", 1}
+															"1: VSync is enabled.", 1},
+	
+	UE4Setting{"rhi.SyncInterval",							"Determines the frequency of VSyncs in supported RHIs.\n"
+															"This is in multiples of 16.66 on a 60hz display, but some platforms support higher refresh rates.\n"
+															"Assuming 60fps, the values correspond to:\n"
+															"  0 - Unlocked (present immediately)\n"
+															"  1 - Present every vblank interval\n"
+															"  2 - Present every 2 vblank intervals\n"
+															"  3 - etc...\n", 1}
 };
