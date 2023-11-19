@@ -142,6 +142,10 @@ void searchRAM() {
 	while (i < mappings_count) {
 		printf("Mapping %ld / %ld\r", i, mappings_count);
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+			if (memoryInfoBuffers[i].size > 100'000'000) {
+				i++;
+				continue;
+			}
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = 0;
