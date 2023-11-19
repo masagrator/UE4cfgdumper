@@ -1,4 +1,6 @@
 #include <array>
+#include <unordered_map>
+#include <string>
 
 struct UE4Setting {
 	const char* commandName;
@@ -206,4 +208,11 @@ std::array settingsArray = {
 															"  1 - Present every vblank interval\n"
 															"  2 - Present every 2 vblank intervals\n"
 															"  3 - etc...\n", 1}
+};
+
+std::unordered_map<std::string, std::string> alternativeDescriptions1 = {
+	{"rhi.SyncInterval",									"Determines the frequency of VSyncs in supported RHIs.  0 - Unlocked\n"
+															"  1 - 60 Hz (16.66 ms)\n"
+															"  2 - 30 Hz (33.33 ms)\n"
+															"  3 - 20 Hz (50.00 ms)\n"}
 };

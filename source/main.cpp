@@ -135,6 +135,105 @@ uint8_t testRUN() {
 	return encoding;
 }
 
+bool searchPointerInMappings(uint64_t string_address, const char* commandName, uint8_t type, size_t itr) {
+	size_t k = 0;
+	uint64_t pointer_address = 0;
+	uint64_t* buffer_u = 0;
+
+	while(k < mappings_count) {
+		if ((memoryInfoBuffers[k].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[k].type == MemType_Heap) {
+			if (memoryInfoBuffers[k].size > 100'000'000) {
+				k++;
+				continue;
+			}
+			buffer_u = new uint64_t[memoryInfoBuffers[k].size / sizeof(uint64_t)];
+			dmntchtReadCheatProcessMemory(memoryInfoBuffers[k].addr, (void*)buffer_u, memoryInfoBuffers[k].size);
+			for (size_t x = 0; x < memoryInfoBuffers[k].size / sizeof(uint64_t); x++) {
+				if (buffer_u[x] == string_address) {
+					pointer_address = memoryInfoBuffers[k].addr + x*8 - 8;
+					consoleUpdate(NULL);
+					break;
+				}
+			}
+			delete[] buffer_u;
+			if (pointer_address) {
+				size_t l = 0;
+				while (l < mappings_count) {
+					if ((memoryInfoBuffers[l].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[l].type == MemType_CodeMutable || memoryInfoBuffers[l].type == MemType_CodeWritable)) {
+						buffer_u = new uint64_t[memoryInfoBuffers[l].size / sizeof(uint64_t)];
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[l].addr, (void*)buffer_u, memoryInfoBuffers[l].size);
+						uint64_t pointer2_address = 0;
+						for (size_t x = 0; x < memoryInfoBuffers[l].size / sizeof(uint64_t); x++) {
+							if (buffer_u[x] == pointer_address) {
+								if (x+1 != memoryInfoBuffers[l].size / sizeof(uint64_t) 
+									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] > 0 
+									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] < 0x48)
+								{
+									pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
+									printf("Main offset: 0x%lX, cmd: %s ", pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
+									uint64_t pointer = 0;
+									dmntchtReadCheatProcessMemory(pointer2_address, (void*)&pointer, 8);
+									uint32_t main_offset = pointer2_address - cheatMetadata.main_nso_extents.base;
+									if (pointer) {
+										if (type == 1) {
+											int data = 0;
+											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
+											printf("int: %d\n", data);
+											ue4_vector.push_back({itr, false, data, 0.0, main_offset});
+										}
+										else if (type == 2) {
+											float data = 0;
+											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
+											printf("float: %.4f\n", data);
+											ue4_vector.push_back({itr, true, 0, data, main_offset});
+										}
+										else {
+											printf("Unknown type: %d\n", type);
+										}
+									}
+									consoleUpdate(NULL);
+									delete[] buffer_u;
+									return true;
+								}
+							}	
+						}
+						delete[] buffer_u;
+						if (pointer2_address) {
+							k = mappings_count;
+							l = mappings_count;
+						}									
+					}
+					l++;
+				}
+			}
+		}
+		k++;
+	}
+	return false;
+}
+
+char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* description) {
+	char* result = 0;
+	if (utf_encoding == 8) {
+		result = (char*)searchString(buffer_c, (char*)description, buffer_size);
+	}
+	else if (utf_encoding == 16) {
+		size_t size = utf8_to_utf16(nullptr, (const uint8_t*)description, 0);
+		char16_t* utf16_string = new char16_t[size+1]();
+		utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)description, size+1);
+		result = (char*)searchString(buffer_c, utf16_string, buffer_size);
+		delete[] utf16_string;
+	}
+	else {
+		size_t size = utf8_to_utf32(nullptr, (const uint8_t*)description, 0);
+		char32_t* utf32_string = new char32_t[size+1]();
+		utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)description, size+1);
+		result = (char*)searchString(buffer_c, utf32_string, buffer_size);
+		delete[] utf32_string;
+	}
+	return result;
+}
+
 void searchRAM() {
 	size_t i = 0;
 	printf("Searching RAM...\n\n");
@@ -153,104 +252,12 @@ void searchRAM() {
 				if (checkedList[itr]) {
 					continue;
 				}
-				if (utf_encoding == 8) {
-					result = (char*)searchString(buffer_c, (char*)settingsArray[itr].description, memoryInfoBuffers[i].size);
-				}
-				else if (utf_encoding == 16) {
-					size_t size = utf8_to_utf16(nullptr, (const uint8_t*)settingsArray[itr].description, 0);
-					char16_t* utf16_string = new char16_t[size+1]();
-					utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)settingsArray[itr].description, size+1);
-					result = (char*)searchString(buffer_c, utf16_string, memoryInfoBuffers[i].size);
-					delete[] utf16_string;
-					consoleUpdate(NULL);
-				}
-				else {
-					size_t size = utf8_to_utf32(nullptr, (const uint8_t*)settingsArray[itr].description, 0);
-					char32_t* utf32_string = new char32_t[size+1]();
-					utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)settingsArray[itr].description, size+1);
-					result = (char*)searchString(buffer_c, utf32_string, memoryInfoBuffers[i].size);
-					delete[] utf32_string;
-				}
-				uint64_t buffer_address = (uint64_t)buffer_c;
+				result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, settingsArray[itr].description);
 				if (result) {
-					ptrdiff_t diff = (uint64_t)result - buffer_address;
+					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
-					consoleUpdate(NULL);
-					
-					size_t k = 0;
-					uint64_t pointer_address = 0;
-					uint64_t* buffer_u = 0;
-
-					while(k < mappings_count) {
-						if ((memoryInfoBuffers[k].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[k].type == MemType_Heap) {
-							if (memoryInfoBuffers[k].size > 100'000'000) {
-								k++;
-								continue;
-							}
-							buffer_u = new uint64_t[memoryInfoBuffers[k].size / sizeof(uint64_t)];
-							dmntchtReadCheatProcessMemory(memoryInfoBuffers[k].addr, (void*)buffer_u, memoryInfoBuffers[k].size);
-							for (size_t x = 0; x < memoryInfoBuffers[k].size / sizeof(uint64_t); x++) {
-								if (buffer_u[x] == string_address) {
-									pointer_address = memoryInfoBuffers[k].addr + x*8 - 8;
-									consoleUpdate(NULL);
-									break;
-								}
-							}
-							delete[] buffer_u;
-							if (pointer_address) {
-								size_t l = 0;
-								while (l < mappings_count) {
-									if ((memoryInfoBuffers[l].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[l].type == MemType_CodeMutable || memoryInfoBuffers[l].type == MemType_CodeWritable)) {
-										buffer_u = new uint64_t[memoryInfoBuffers[l].size / sizeof(uint64_t)];
-										dmntchtReadCheatProcessMemory(memoryInfoBuffers[l].addr, (void*)buffer_u, memoryInfoBuffers[l].size);
-										uint64_t pointer2_address = 0;
-										for (size_t x = 0; x < memoryInfoBuffers[l].size / sizeof(uint64_t); x++) {
-											if (buffer_u[x] == pointer_address) {
-												if (x+1 != memoryInfoBuffers[l].size / sizeof(uint64_t) 
-													&& (int64_t)(buffer_u[x+1]) - buffer_u[x] > 0 
-													&& (int64_t)(buffer_u[x+1]) - buffer_u[x] < 0x48)
-												{
-													pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
-													printf("Main offset: 0x%lX, cmd: %s ", pointer2_address - cheatMetadata.main_nso_extents.base, settingsArray[itr].commandName);
-													checkedList[itr] = true;
-													uint64_t pointer = 0;
-													dmntchtReadCheatProcessMemory(pointer2_address, (void*)&pointer, 8);
-													uint32_t main_offset = pointer2_address - cheatMetadata.main_nso_extents.base;
-													if (pointer) {
-														int type = 0;
-														dmntchtReadCheatProcessMemory(pointer-0x14, (void*)&type, 4);
-														if (settingsArray[itr].type == 1) {
-															int data = 0;
-															dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-															printf("int: %d\n", data);
-															ue4_vector.push_back({itr, false, data, 0.0, main_offset});
-														}
-														else if (settingsArray[itr].type == 2) {
-															float data = 0;
-															dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-															printf("float: %.4f\n", data);
-															ue4_vector.push_back({itr, true, 0, data, main_offset});
-														}
-														else {
-															printf("Unknown type: %d\n", type);
-														}
-													}
-													consoleUpdate(NULL);
-													break;
-												}
-											}	
-										}
-										delete[] buffer_u;
-										if (pointer2_address) {
-											k = mappings_count;
-											l = mappings_count;
-										}									
-									}
-									l++;
-								}
-							}
-						}
-						k++;
+					if (searchPointerInMappings(string_address, settingsArray[itr].commandName, settingsArray[itr].type, itr)) {
+						checkedList[itr] = true;
 					}
 				}
 			}
@@ -258,13 +265,48 @@ void searchRAM() {
 		}
 		i++;
 	}
+	printf("\n");
 	for (size_t x = 0; x < settingsArray.size(); x++) {
 		if (!checkedList[x]) {
 			printf("%s was not found!\n", settingsArray[x].commandName);
+			consoleUpdate(NULL);
+			if (alternativeDescriptions1.contains(settingsArray[x].commandName)) {
+				printf("%s has alternative description, searching again...\n", settingsArray[x].commandName);
+				consoleUpdate(NULL);
+				i = 0;
+				while (i < mappings_count) {
+					if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+						if (memoryInfoBuffers[i].size > 100'000'000) {
+							i++;
+							continue;
+						}
+						char* buffer_c = new char[memoryInfoBuffers[i].size];
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+						char* result = 0;
+						result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, alternativeDescriptions1[settingsArray[x].commandName].c_str());
+						if (result) {
+							ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
+							uint64_t string_address = memoryInfoBuffers[i].addr + diff;
+							if (searchPointerInMappings(string_address, settingsArray[x].commandName, settingsArray[x].type, x)) {
+								checkedList[x] = true;
+								i = mappings_count;
+								continue;
+							}
+						}
+						delete[] buffer_c;
+					}
+					i++;
+				}
+				if (!checkedList[x]) {
+					printf("%s alternative description failed!\n", settingsArray[x].commandName);
+					consoleUpdate(NULL);
+				}
+			}
 		}
 	}
 	delete[] checkedList;
 	printf("Search is finished!\n");
+	consoleUpdate(NULL);
 }
 
 void dumpAsCheats() {
