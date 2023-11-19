@@ -183,6 +183,10 @@ void searchRAM() {
 
 					while(k < mappings_count) {
 						if ((memoryInfoBuffers[k].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[k].type == MemType_Heap) {
+							if (memoryInfoBuffers[k].size > 100'000'000) {
+								k++;
+								continue;
+							}
 							buffer_u = new uint64_t[memoryInfoBuffers[k].size / sizeof(uint64_t)];
 							dmntchtReadCheatProcessMemory(memoryInfoBuffers[k].addr, (void*)buffer_u, memoryInfoBuffers[k].size);
 							for (size_t x = 0; x < memoryInfoBuffers[k].size / sizeof(uint64_t); x++) {
