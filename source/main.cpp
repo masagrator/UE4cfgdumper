@@ -38,15 +38,20 @@ bool isServiceRunning(const char *serviceName) {
 	}
 }
 
-template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bool null_terminated = false) {
+template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bool null_terminated = false, bool whole = false) {
 	char* buffer_end = &buffer[buffer_size];
 	size_t string_len = (std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)) * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>);
 	T string_end = &string[std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)];
 	char* result = std::search(buffer, buffer_end, (char*)string, (char*)string_end);
-	while ((uint64_t)result != (uint64_t)&buffer[buffer_size]) {
-		if (!result[-1 * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>)])
-			return (T)result;
-		result = std::search(result + string_len, buffer_end, (char*)string, (char*)string_end);
+	if (whole) {
+		while ((uint64_t)result != (uint64_t)&buffer[buffer_size]) {
+			if (!result[-1 * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>)])
+				return (T)result;
+			result = std::search(result + string_len, buffer_end, (char*)string, (char*)string_end);
+		}
+	}
+	else if ((uint64_t)result != (uint64_t)&buffer[buffer_size]) {
+		return (T)result;
 	}
 	return nullptr;
 }
@@ -171,7 +176,7 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 							if (buffer_u[x] == pointer_address) {
 								if (x+1 != memoryInfoBuffers[l].size / sizeof(uint64_t) 
 									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] > 0 
-									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] < 0x48)
+									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] <= 0x64)
 								{
 									pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
 									printf("Main offset: 0x%lX, cmd: %s ", pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
@@ -245,7 +250,7 @@ void SearchFramerate() {
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
-			result = (char*)searchString(buffer_c, "FixedFrameRate",  memoryInfoBuffers[i].size, true);
+			result = (char*)searchString(buffer_c, "FixedFrameRate",  memoryInfoBuffers[i].size, true, true);
 			address = (uint64_t)buffer_c;
 			delete[] buffer_c;
 		}
@@ -281,6 +286,7 @@ void searchDescriptionsInRAM() {
 	bool* checkedList = new bool[settingsArray.size()](); 
 	while (i < mappings_count) {
 		printf("Mapping %ld / %ld\r", i, mappings_count);
+		consoleUpdate(NULL);
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
 			if (memoryInfoBuffers[i].size > 100'000'000) {
 				i++;
