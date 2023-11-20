@@ -297,7 +297,7 @@ void SearchFramerate() {
 										printf("bSmoothFrameRate: %x\n", (bool)(bitflags & 0x20));
 										printf("CustomTimeStep float: %.2f\n", CustomTimeStep);
 										consoleUpdate(NULL);
-										ue4_vector.push_back({"FixedTimeStep", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
+										ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
 										ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
 										delete[] buffer;
 										return;
