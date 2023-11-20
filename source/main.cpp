@@ -180,7 +180,7 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] <= 0x64)
 								{
 									pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
-									printf("Main offset: 0x%lX, cmd: %s ", pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
+									printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s " CONSOLE_RESET, pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
 									uint64_t pointer = 0;
 									dmntchtReadCheatProcessMemory(pointer2_address, (void*)&pointer, 8);
 									uint32_t main_offset = pointer2_address - cheatMetadata.main_nso_extents.base;
@@ -188,13 +188,13 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 										if (type == 1) {
 											int data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-											printf("int: %d\n", data);
+											printf("int: " CONSOLE_YELLOW "%d\n" CONSOLE_RESET, data);
 											ue4_vector.push_back({commandName, false, data, 0.0, main_offset, 0});
 										}
 										else if (type == 2) {
 											float data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
-											printf("float: %.4f\n", data);
+											printf("float: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, data);
 											ue4_vector.push_back({commandName, true, 0, data, main_offset, 0});
 										}
 										else {
@@ -246,6 +246,12 @@ char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* descrip
 
 void SearchFramerate() {
 	for (size_t i = 0; i < mappings_count; i++) {
+		if (memoryInfoBuffers[i].addr < cheatMetadata.main_nso_extents.base) {
+			continue;
+		}
+		if (memoryInfoBuffers[i].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
+			continue;
+		}
 		char* result = 0;
 		uint64_t address = 0;
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
@@ -260,6 +266,12 @@ void SearchFramerate() {
 			uint64_t final_address = memoryInfoBuffers[i].addr + diff;
 			for (size_t x = 0; x < mappings_count; x++) {
 				if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
+					if (memoryInfoBuffers[x].addr < cheatMetadata.main_nso_extents.base) {
+						continue;
+					}
+					if (memoryInfoBuffers[x].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
+						continue;
+					}
 					uint64_t* buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
 					dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
 					for (size_t y = 0; y < (memoryInfoBuffers[x].size / sizeof(uint64_t)); y++) {
@@ -269,42 +281,47 @@ void SearchFramerate() {
 							if (offset < 0x600 || offset > 0x1000) {
 								continue;
 							}
-							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer...\n", offset, offset+0x18);
+							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, OS may not respond until finished...\n", offset, offset+0x18);
 							consoleUpdate(NULL);
 							delete[] buffer;
-							x++;
-							while(true) {
-								if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
-									break;
+
+							for (size_t y = 0; y < mappings_count; y++) {
+								printf("Mapping %ld / %ld\r", y, mappings_count);
+								consoleUpdate(NULL);
+								if (memoryInfoBuffers[y].addr < cheatMetadata.main_nso_extents.base) {
+									continue;
 								}
-								x++;
-							}
-							consoleUpdate(NULL);
-							buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
-							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
-							for (size_t z = 0; z < (memoryInfoBuffers[x].size / sizeof(uint64_t)); z++) {
-								if (buffer[z] % 0x1000 == 0) {
-									uint32_t bitflags = 0;
-									float float_value = 0;
-									dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
-									dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
-									float CustomTimeStep = 0;
-									dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
-									if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
-										printf("FFR potential main offset: 0x%lx, float: %.2f\n\n", 
-											(memoryInfoBuffers[x].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value);
-										printf("bUseFixedFrameRate: %x\n", (bool)(bitflags & 0x40));
-										printf("bSmoothFrameRate: %x\n", (bool)(bitflags & 0x20));
-										printf("CustomTimeStep float: %.2f\n", CustomTimeStep);
-										consoleUpdate(NULL);
-										ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
-										ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
-										delete[] buffer;
-										return;
+								if (memoryInfoBuffers[y].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
+									continue;
+								}
+								if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
+									buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
+									dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
+									for (size_t z = 0; z < (memoryInfoBuffers[y].size / sizeof(uint64_t)); z++) {
+										if (buffer[z] % 0x1000 == 0) {
+											uint32_t bitflags = 0;
+											float float_value = 0;
+											dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
+											dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
+											float CustomTimeStep = 0;
+											dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
+											if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
+												printf("FFR potential main offset: 0x%lx, float: %.2f\nFlags: 0x%x\n", 
+													(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
+												printf("bUseFixedFrameRate: %x\n", (bool)(bitflags & 0x40));
+												printf("bSmoothFrameRate: %x\n", (bool)(bitflags & 0x20));
+												printf("CustomTimeStep float: %.2f\n", CustomTimeStep);
+												consoleUpdate(NULL);
+												ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
+												ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
+												delete[] buffer;
+												return;
+											}
+										}
 									}
+									delete[] buffer;
 								}
 							}
-							delete[] buffer;
 							return;
 						}
 					}
@@ -313,6 +330,7 @@ void SearchFramerate() {
 			}
 		}
 	}
+	printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET " On older Unreal Engine 4 games it requires different method.\n" CONSOLE_RESET);
 }
 
 void searchDescriptionsInRAM() {
@@ -351,13 +369,13 @@ void searchDescriptionsInRAM() {
 		}
 		i++;
 	}
-	printf("\n");
+	printf("                                                \n\n");
 	for (size_t x = 0; x < settingsArray.size(); x++) {
 		if (!checkedList[x]) {
-			printf("%s was not found!\n", settingsArray[x].commandName);
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", settingsArray[x].commandName);
 			consoleUpdate(NULL);
 			if (alternativeDescriptions1.contains(settingsArray[x].commandName)) {
-				printf("%s has alternative description, searching again...\n", settingsArray[x].commandName);
+				printf(CONSOLE_MAGENTA "?" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " has alternative description, searching again...\n", settingsArray[x].commandName);
 				consoleUpdate(NULL);
 				i = 0;
 				while (i < mappings_count) {
@@ -384,7 +402,7 @@ void searchDescriptionsInRAM() {
 					i++;
 				}
 				if (!checkedList[x]) {
-					printf("%s alternative description failed!\n", settingsArray[x].commandName);
+					printf(CONSOLE_RED "!!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " alternative description search failed!\n", settingsArray[x].commandName);
 					consoleUpdate(NULL);
 				}
 			}
@@ -571,7 +589,8 @@ int main(int argc, char* argv[])
 			consoleUpdate(NULL);
 			searchDescriptionsInRAM();
 			SearchFramerate();
-			printf("Search is finished!\n");
+			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
+			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
 			dumpAsCheats();
 			dumpAsLog();
