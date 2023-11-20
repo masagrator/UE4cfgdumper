@@ -17,11 +17,12 @@ u64 mappings_count = 0;
 MemoryInfo* memoryInfoBuffers = 0;
 uint8_t utf_encoding = 0;
 struct ue4Results {
-	size_t iterator;
+	const char* iterator;
 	bool isFloat = false;
 	int default_value_int;
 	float default_value_float;
 	uint32_t offset;
+	uint32_t add;
 };
 
 std::vector<ue4Results> ue4_vector;
@@ -188,13 +189,13 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 											int data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("int: %d\n", data);
-											ue4_vector.push_back({itr, false, data, 0.0, main_offset});
+											ue4_vector.push_back({commandName, false, data, 0.0, main_offset, 0});
 										}
 										else if (type == 2) {
 											float data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("float: %.4f\n", data);
-											ue4_vector.push_back({itr, true, 0, data, main_offset});
+											ue4_vector.push_back({commandName, true, 0, data, main_offset, 0});
 										}
 										else {
 											printf("Unknown type: %d\n", type);
@@ -268,8 +269,41 @@ void SearchFramerate() {
 							if (offset < 0x600 || offset > 0x1000) {
 								continue;
 							}
-							printf("Offset of FixedFrameRate: 0x%x\n", offset);
+							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer...\n", offset, offset+0x18);
 							consoleUpdate(NULL);
+							delete[] buffer;
+							x++;
+							while(true) {
+								if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
+									break;
+								}
+								x++;
+							}
+							consoleUpdate(NULL);
+							buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
+							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
+							for (size_t z = 0; z < (memoryInfoBuffers[x].size / sizeof(uint64_t)); z++) {
+								if (buffer[z] % 0x1000 == 0) {
+									uint32_t bitflags = 0;
+									float float_value = 0;
+									dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
+									dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
+									float CustomTimeStep = 0;
+									dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
+									if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
+										printf("FFR potential main offset: 0x%lx, float: %.2f\n\n", 
+											(memoryInfoBuffers[x].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value);
+										printf("bUseFixedFrameRate: %x\n", (bool)(bitflags & 0x40));
+										printf("bSmoothFrameRate: %x\n", (bool)(bitflags & 0x20));
+										printf("CustomTimeStep float: %.2f\n", CustomTimeStep);
+										consoleUpdate(NULL);
+										ue4_vector.push_back({"FixedTimeStep", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
+										ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[x].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
+										delete[] buffer;
+										return;
+									}
+								}
+							}
 							delete[] buffer;
 							return;
 						}
@@ -283,8 +317,12 @@ void SearchFramerate() {
 
 void searchDescriptionsInRAM() {
 	size_t i = 0;
-	bool* checkedList = new bool[settingsArray.size()](); 
+	bool* checkedList = new bool[settingsArray.size()]();
+	size_t checkedCount = 0;
 	while (i < mappings_count) {
+		if (checkedCount == settingsArray.size()) {
+			return;
+		}
 		printf("Mapping %ld / %ld\r", i, mappings_count);
 		consoleUpdate(NULL);
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
@@ -304,6 +342,7 @@ void searchDescriptionsInRAM() {
 					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
 					if (searchPointerInMappings(string_address, settingsArray[itr].commandName, settingsArray[itr].type, itr)) {
+						checkedCount += 1;
 						checkedList[itr] = true;
 					}
 				}
@@ -369,22 +408,43 @@ void dumpAsCheats() {
 	}
 	for (size_t i = 0; i < ue4_vector.size(); i++) {
 		fwrite("[", 1, 1, text_file);
-		fwrite(settingsArray[ue4_vector[i].iterator].commandName, strlen(settingsArray[ue4_vector[i].iterator].commandName), 1, text_file);
+		fwrite(ue4_vector[i].iterator, strlen(ue4_vector[i].iterator), 1, text_file);
 		fwrite("]\n", 2, 1, text_file);
 		fwrite("580F0000 ", 9, 1, text_file);
 		char temp[24] = "";
 		snprintf(temp, sizeof(temp), "%08X\n", ue4_vector[i].offset);
 		fwrite(temp, 9, 1, text_file);
-		fwrite("680F0000 ", 9, 1, text_file);
-		if (ue4_vector[i].isFloat) {
+		if (ue4_vector[i].add) {
+			fwrite("780F0000 ", 9, 1, text_file);
+			snprintf(temp, sizeof(temp), "%08X\n", ue4_vector[i].add);
+			fwrite(temp, 9, 1, text_file);
+		}
+		if (!strcmp("CustomTimeStep", ue4_vector[i].iterator)) {
+			fwrite("640F0000 00000000 ", 18, 1, text_file);
 			int temp_val = 0;
 			memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
-			snprintf(temp, sizeof(temp), "%08X %08X\n\n", temp_val, temp_val);
+			snprintf(temp, sizeof(temp), "%08X\n\n", ue4_vector[i].add);
+			fwrite(temp, 10, 1, text_file);
 		}
 		else {
-			snprintf(temp, sizeof(temp), "%08X %08X\n\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
+			fwrite("680F0000 ", 9, 1, text_file);
+			if (ue4_vector[i].isFloat) {
+				if (!ue4_vector[i].default_value_int) {
+					int temp_val = 0;
+					memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
+					snprintf(temp, sizeof(temp), "%08X %08X\n\n", temp_val, temp_val);
+				}
+				else {
+					int temp_val = 0;
+					memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
+					snprintf(temp, sizeof(temp), "%08X %08X\n\n", temp_val, ue4_vector[i].default_value_int);
+				}
+			}
+			else {
+				snprintf(temp, sizeof(temp), "%08X %08X\n\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
+			}
+			fwrite(temp, strlen(temp), 1, text_file);
 		}
-		fwrite(temp, strlen(temp), 1, text_file);
 	}
 	fclose(text_file);
 	printf("Dumped cheat file to:\n");
@@ -408,17 +468,20 @@ void dumpAsLog() {
 	fwrite(ue4_sdk.c_str(), ue4_sdk.size(), 1, text_file);
 	fwrite("\n\n", 2, 1, text_file);
 	for (size_t i = 0; i < ue4_vector.size(); i++) {
-		fwrite(settingsArray[ue4_vector[i].iterator].commandName, strlen(settingsArray[ue4_vector[i].iterator].commandName), 1, text_file);
+		fwrite(ue4_vector[i].iterator, strlen(ue4_vector[i].iterator), 1, text_file);
 		char temp[48] = "";
-		snprintf(temp, sizeof(temp), ", main_offset: 0x%X, type: ", ue4_vector[i].offset);
+		snprintf(temp, sizeof(temp), ", main_offset: 0x%X + 0x%X, ", ue4_vector[i].offset, ue4_vector[i].add);
 		fwrite(temp, strlen(temp), 1, text_file);
+		if (!strcmp("FixedFrameRate", ue4_vector[i].iterator)) {
+			snprintf(temp, sizeof(temp), "flags: 0x%x, ", ue4_vector[i].default_value_int);
+		}
 		if (ue4_vector[i].isFloat) {
 			int temp_val = 0;
 			memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
-			snprintf(temp, sizeof(temp), "float: %.5f / 0x%X\n", ue4_vector[i].default_value_float, temp_val);
+			snprintf(temp, sizeof(temp), "type: float %.5f / 0x%X\n", ue4_vector[i].default_value_float, temp_val);
 		}
 		else {
-			snprintf(temp, sizeof(temp), "int: %d / 0x%X\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
+			snprintf(temp, sizeof(temp), "type: int %d / 0x%X\n", ue4_vector[i].default_value_int, ue4_vector[i].default_value_int);
 		}
 		fwrite(temp, strlen(temp), 1, text_file);
 	}
@@ -535,6 +598,7 @@ int main(int argc, char* argv[])
 	}
 
 	// Deinitialize and clean up resources used by the console (important!)
+	ue4_vector.clear();
 	consoleExit(NULL);
 	return 0;
 }
