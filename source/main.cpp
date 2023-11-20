@@ -281,13 +281,12 @@ void SearchFramerate() {
 							if (offset < 0x600 || offset > 0x1000) {
 								continue;
 							}
-							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, OS may not respond until finished...\n", offset, offset+0x18);
+							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n" CONSOLE_RESET, offset, offset+0x18);
 							consoleUpdate(NULL);
 							delete[] buffer;
 
+							uint32_t findings = 0;
 							for (size_t y = 0; y < mappings_count; y++) {
-								printf("Mapping %ld / %ld\r", y, mappings_count);
-								consoleUpdate(NULL);
 								if (memoryInfoBuffers[y].addr < cheatMetadata.main_nso_extents.base) {
 									continue;
 								}
@@ -295,6 +294,8 @@ void SearchFramerate() {
 									continue;
 								}
 								if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
+									printf("Mapping %ld / %ld\r", y, mappings_count);
+									consoleUpdate(NULL);
 									buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
 									dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
 									for (size_t z = 0; z < (memoryInfoBuffers[y].size / sizeof(uint64_t)); z++) {
@@ -314,10 +315,12 @@ void SearchFramerate() {
 												consoleUpdate(NULL);
 												ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
 												ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
-												delete[] buffer;
-												return;
+												findings += 1;
 											}
 										}
+									}
+									if (findings > 1) {
+										printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "\nThere are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
 									}
 									delete[] buffer;
 								}
@@ -369,7 +372,7 @@ void searchDescriptionsInRAM() {
 		}
 		i++;
 	}
-	printf("                                                \n\n");
+	printf("                                                \n");
 	for (size_t x = 0; x < settingsArray.size(); x++) {
 		if (!checkedList[x]) {
 			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", settingsArray[x].commandName);
@@ -588,6 +591,7 @@ int main(int argc, char* argv[])
 			printf("Searching RAM...\n\n");
 			consoleUpdate(NULL);
 			searchDescriptionsInRAM();
+			printf("                                                \n");
 			SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
