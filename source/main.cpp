@@ -423,7 +423,7 @@ void dumpAsCheats() {
 			fwrite("640F0000 00000000 ", 18, 1, text_file);
 			int temp_val = 0;
 			memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
-			snprintf(temp, sizeof(temp), "%08X\n\n", ue4_vector[i].add);
+			snprintf(temp, sizeof(temp), "%08X\n\n", temp_val);
 			fwrite(temp, 10, 1, text_file);
 		}
 		else {
@@ -469,11 +469,12 @@ void dumpAsLog() {
 	fwrite("\n\n", 2, 1, text_file);
 	for (size_t i = 0; i < ue4_vector.size(); i++) {
 		fwrite(ue4_vector[i].iterator, strlen(ue4_vector[i].iterator), 1, text_file);
-		char temp[48] = "";
+		char temp[128] = "";
 		snprintf(temp, sizeof(temp), ", main_offset: 0x%X + 0x%X, ", ue4_vector[i].offset, ue4_vector[i].add);
 		fwrite(temp, strlen(temp), 1, text_file);
 		if (!strcmp("FixedFrameRate", ue4_vector[i].iterator)) {
-			snprintf(temp, sizeof(temp), "flags: 0x%x, ", ue4_vector[i].default_value_int);
+			snprintf(temp, sizeof(temp), "flags: 0x%x, bUseFixedFrameRate: %d, bSmoothFrameRate: %d, ", ue4_vector[i].default_value_int, (bool)(ue4_vector[i].default_value_int & 0x40), (bool)(ue4_vector[i].default_value_int & 0x20));
+			fwrite(temp, strlen(temp), 1, text_file);
 		}
 		if (ue4_vector[i].isFloat) {
 			int temp_val = 0;
