@@ -281,7 +281,7 @@ void SearchFramerate() {
 							if (offset < 0x600 || offset > 0x1000) {
 								continue;
 							}
-							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n" CONSOLE_RESET, offset, offset+0x18);
+							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n\n" CONSOLE_RESET, offset, offset+0x18);
 							consoleUpdate(NULL);
 							delete[] buffer;
 
@@ -307,11 +307,11 @@ void SearchFramerate() {
 											float CustomTimeStep = 0;
 											dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
 											if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
-												printf("FFR potential main offset: 0x%lx, float: %.2f\nFlags: 0x%x\n", 
+												printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
 													(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
-												printf("bUseFixedFrameRate: %x\n", (bool)(bitflags & 0x40));
-												printf("bSmoothFrameRate: %x\n", (bool)(bitflags & 0x20));
-												printf("CustomTimeStep float: %.2f\n", CustomTimeStep);
+												printf("bUseFixedFrameRate: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+												printf("bSmoothFrameRate: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+												printf("CustomTimeStep float: " CONSOLE_YELLOW "%.2f\n\n" CONSOLE_RESET, CustomTimeStep);
 												consoleUpdate(NULL);
 												ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
 												ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
@@ -319,11 +319,11 @@ void SearchFramerate() {
 											}
 										}
 									}
-									if (findings > 1) {
-										printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "\nThere are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
-									}
 									delete[] buffer;
 								}
+							}
+							if (findings > 1) {
+								printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "There are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
 							}
 							return;
 						}
@@ -587,6 +587,8 @@ int main(int argc, char* argv[])
 
 		//Test run
 
+		appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
+
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
 			printf("Searching RAM...\n\n");
 			consoleUpdate(NULL);
@@ -599,6 +601,8 @@ int main(int argc, char* argv[])
 			dumpAsCheats();
 			dumpAsLog();
 		}
+
+		appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
