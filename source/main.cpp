@@ -38,12 +38,16 @@ bool isServiceRunning(const char *serviceName) {
 	}
 }
 
-template <typename T> T searchString(char* buffer, T string, u64 buffer_size) {
+template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bool null_terminated = false) {
 	char* buffer_end = &buffer[buffer_size];
-	T string_end = &string[std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string)];
+	size_t string_len = (std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)) * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>);
+	T string_end = &string[std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)];
 	char* result = std::search(buffer, buffer_end, (char*)string, (char*)string_end);
-	if ((uint64_t)result != (uint64_t)&buffer[buffer_size])
-		return (T)result;
+	while ((uint64_t)result != (uint64_t)&buffer[buffer_size]) {
+		if (!result[-1 * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>)])
+			return (T)result;
+		result = std::search(result + string_len, buffer_end, (char*)string, (char*)string_end);
+	}
 	return nullptr;
 }
 
@@ -234,9 +238,46 @@ char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* descrip
 	return result;
 }
 
-void searchRAM() {
+void SearchFramerate() {
+	for (size_t i = 0; i < mappings_count; i++) {
+		char* result = 0;
+		uint64_t address = 0;
+		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
+			char* buffer_c = new char[memoryInfoBuffers[i].size];
+			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+			result = (char*)searchString(buffer_c, "FixedFrameRate",  memoryInfoBuffers[i].size, true);
+			address = (uint64_t)buffer_c;
+			delete[] buffer_c;
+		}
+		if (result) {
+			ptrdiff_t diff = (uint64_t)result - address;
+			uint64_t final_address = memoryInfoBuffers[i].addr + diff;
+			for (size_t x = 0; x < mappings_count; x++) {
+				if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
+					uint64_t* buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
+					dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
+					for (size_t y = 0; y < (memoryInfoBuffers[x].size / sizeof(uint64_t)); y++) {
+						if (buffer[y] == final_address) {
+							uint32_t offset = 0;
+							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + y*8 + 0x24, (void*)&offset, 4);
+							if (offset < 0x600 || offset > 0x1000) {
+								continue;
+							}
+							printf("Offset of FixedFrameRate: 0x%x\n", offset);
+							consoleUpdate(NULL);
+							delete[] buffer;
+							return;
+						}
+					}
+					delete[] buffer;
+				}
+			}
+		}
+	}
+}
+
+void searchDescriptionsInRAM() {
 	size_t i = 0;
-	printf("Searching RAM...\n\n");
 	bool* checkedList = new bool[settingsArray.size()](); 
 	while (i < mappings_count) {
 		printf("Mapping %ld / %ld\r", i, mappings_count);
@@ -305,8 +346,6 @@ void searchRAM() {
 		}
 	}
 	delete[] checkedList;
-	printf("Search is finished!\n");
-	consoleUpdate(NULL);
 }
 
 void dumpAsCheats() {
@@ -458,7 +497,12 @@ int main(int argc, char* argv[])
 		//Test run
 
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
-			searchRAM();
+			printf("Searching RAM...\n\n");
+			consoleUpdate(NULL);
+			searchDescriptionsInRAM();
+			SearchFramerate();
+			printf("Search is finished!\n");
+			consoleUpdate(NULL);
 			dumpAsCheats();
 			dumpAsLog();
 		}
