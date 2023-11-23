@@ -294,7 +294,7 @@ void SearchFramerate() {
 									continue;
 								}
 								if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
-									printf("Mapping %ld / %ld\r", y, mappings_count);
+									printf("Mapping %ld / %ld\r", y+1, mappings_count);
 									consoleUpdate(NULL);
 									buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
 									dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
@@ -304,17 +304,17 @@ void SearchFramerate() {
 											float float_value = 0;
 											dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
 											dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
-											float CustomTimeStep = 0;
+											int32_t CustomTimeStep = 0;
 											dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
 											if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
 												printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
 													(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
-												printf("bUseFixedFrameRate: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-												printf("bSmoothFrameRate: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
-												printf("CustomTimeStep float: " CONSOLE_YELLOW "%.2f\n\n" CONSOLE_RESET, CustomTimeStep);
+												printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+												printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+												printf("CustomTimeStep bool: " CONSOLE_YELLOW "%d\n\n" CONSOLE_RESET, CustomTimeStep);
 												consoleUpdate(NULL);
 												ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
-												ue4_vector.push_back({"CustomTimeStep", true, 0, CustomTimeStep, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
+												ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
 												findings += 1;
 											}
 										}
@@ -340,6 +340,8 @@ void searchDescriptionsInRAM() {
 	size_t i = 0;
 	bool* checkedList = new bool[settingsArray.size()]();
 	size_t checkedCount = 0;
+	printf("Mapping %ld / %ld\r", i+1, mappings_count);
+	consoleUpdate(NULL);
 	while (i < mappings_count) {
 		if (checkedCount == settingsArray.size()) {
 			return;
@@ -349,7 +351,7 @@ void searchDescriptionsInRAM() {
 				i++;
 				continue;
 			}
-			printf("Mapping %ld / %ld\r", i, mappings_count);
+			printf("Mapping %ld / %ld\r", i+1, mappings_count);
 			consoleUpdate(NULL);
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
@@ -442,9 +444,7 @@ void dumpAsCheats() {
 		}
 		if (!strcmp("CustomTimeStep", ue4_vector[i].iterator)) {
 			fwrite("640F0000 00000000 ", 18, 1, text_file);
-			int temp_val = 0;
-			memcpy(&temp_val, &ue4_vector[i].default_value_float, 4);
-			snprintf(temp, sizeof(temp), "%08X\n\n", temp_val);
+			snprintf(temp, sizeof(temp), "%08X\n\n", ue4_vector[i].default_value_int);
 			fwrite(temp, 10, 1, text_file);
 		}
 		else {
