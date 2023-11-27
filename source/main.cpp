@@ -252,84 +252,136 @@ void SearchFramerate() {
 		if (memoryInfoBuffers[i].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
 			continue;
 		}
-		char* result = 0;
+		char* FFR_result = 0;
+		char* CTS_result = 0;
 		uint64_t address = 0;
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
-			result = (char*)searchString(buffer_c, "FixedFrameRate",  memoryInfoBuffers[i].size, true, true);
+			FFR_result = (char*)searchString(buffer_c, "FixedFrameRate", memoryInfoBuffers[i].size, true, true);
+			if (FFR_result) {
+				CTS_result = (char*)searchString(buffer_c, "CustomTimeStep", memoryInfoBuffers[i].size, true, true);
+			}
 			address = (uint64_t)buffer_c;
 			delete[] buffer_c;
 		}
-		if (result) {
-			ptrdiff_t diff = (uint64_t)result - address;
-			uint64_t final_address = memoryInfoBuffers[i].addr + diff;
-			for (size_t x = 0; x < mappings_count; x++) {
-				if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
-					if (memoryInfoBuffers[x].addr < cheatMetadata.main_nso_extents.base) {
-						continue;
+		else continue;
+		if (!FFR_result) continue;
+
+		ptrdiff_t FFR_diff = (uint64_t)FFR_result - address;
+		uint64_t FFR_final_address = memoryInfoBuffers[i].addr + FFR_diff;
+
+		ptrdiff_t CTS_diff = 0;
+		uint64_t CTS_final_address = 0;
+		if (CTS_result) {
+			CTS_diff = (uint64_t)CTS_result - address;
+			CTS_final_address = memoryInfoBuffers[i].addr + CTS_diff;
+		}
+		else {
+			printf(CONSOLE_YELLOW "CustomTimeStep" CONSOLE_RESET " not found!\n");
+			consoleUpdate(NULL);
+		}
+		for (size_t x = 0; x < mappings_count; x++) {
+			if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
+				if (memoryInfoBuffers[x].addr < cheatMetadata.main_nso_extents.base) {
+					continue;
+				}
+				if (memoryInfoBuffers[x].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
+					continue;
+				}
+				uint64_t* buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
+				dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
+				uint32_t offset = 0;
+				uint32_t offset2 = 0;
+				size_t itr = 0;
+				while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
+					if (buffer[itr] == FFR_final_address) {
+						uint32_t offset_temp = 0;
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x24, (void*)&offset_temp, 4);
+						if (offset_temp < 0x600 || offset_temp > 0x1000) {
+							itr++;
+							continue;
+						}
+						offset = offset_temp;
+						break;
 					}
-					if (memoryInfoBuffers[x].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
-						continue;
-					}
-					uint64_t* buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
-					dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
-					for (size_t y = 0; y < (memoryInfoBuffers[x].size / sizeof(uint64_t)); y++) {
-						if (buffer[y] == final_address) {
-							uint32_t offset = 0;
-							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + y*8 + 0x24, (void*)&offset, 4);
-							if (offset < 0x600 || offset > 0x1000) {
+					itr++;
+				}
+				if (!offset) {
+					delete[] buffer;
+					continue;
+				}
+
+				printf("Offset of " CONSOLE_YELLOW "FixedFrameRate" CONSOLE_RESET ": 0x%x\n", offset);
+				consoleUpdate(NULL);
+				if (CTS_final_address) {
+					while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
+						if (buffer[itr] == CTS_final_address) {
+							uint32_t offset_temp = 0;
+							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x24, (void*)&offset_temp, 4);
+							if (offset_temp < 0x600 || offset_temp > 0x1000) {
+								itr++;
 								continue;
 							}
-							printf("Offset of FixedFrameRate: 0x%x\nPossible offset of CustomTimeStep: 0x%x\nSearching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n\n" CONSOLE_RESET, offset, offset+0x18);
-							consoleUpdate(NULL);
-							delete[] buffer;
-
-							uint32_t findings = 0;
-							for (size_t y = 0; y < mappings_count; y++) {
-								if (memoryInfoBuffers[y].addr < cheatMetadata.main_nso_extents.base) {
-									continue;
-								}
-								if (memoryInfoBuffers[y].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
-									continue;
-								}
-								if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
-									printf("Mapping %ld / %ld\r", y+1, mappings_count);
-									consoleUpdate(NULL);
-									buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
-									dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
-									for (size_t z = 0; z < (memoryInfoBuffers[y].size / sizeof(uint64_t)); z++) {
-										if (buffer[z] % 0x1000 == 0) {
-											uint32_t bitflags = 0;
-											float float_value = 0;
-											dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
-											dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
-											int32_t CustomTimeStep = 0;
-											dmntchtReadCheatProcessMemory(buffer[z] + offset + 0x18, (void*)&CustomTimeStep, 4);
-											if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
-												printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
-													(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
-												printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-												printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
-												printf("CustomTimeStep bool: " CONSOLE_YELLOW "%d\n\n" CONSOLE_RESET, CustomTimeStep);
-												consoleUpdate(NULL);
-												ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
-												ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
-												findings += 1;
-											}
-										}
-									}
-									delete[] buffer;
-								}
-							}
-							if (findings > 1) {
-								printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "There are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
-							}
-							return;
+							offset2 = offset_temp;
+							break;
 						}
+						itr++;
 					}
-					delete[] buffer;
 				}
+				delete[] buffer;
+				if (offset2) {
+					printf("Offset of CustomTimeStep: 0x%x\n", offset2);
+				}
+				printf("Searching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n\n" CONSOLE_RESET);
+				consoleUpdate(NULL);
+				uint32_t findings = 0;
+				for (size_t y = 0; y < mappings_count; y++) {
+					if (memoryInfoBuffers[y].addr < cheatMetadata.main_nso_extents.base) {
+						continue;
+					}
+					if (memoryInfoBuffers[y].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
+						continue;
+					}
+					if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
+						printf("Mapping %ld / %ld\r", y+1, mappings_count);
+						consoleUpdate(NULL);
+						buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
+						for (size_t z = 0; z < (memoryInfoBuffers[y].size / sizeof(uint64_t)); z++) {
+							if (buffer[z] % 0x1000 == 0) {
+								uint32_t bitflags = 0;
+								float float_value = 0;
+								dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
+								dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
+								int32_t CustomTimeStep = 0;
+								if (offset2) {
+									dmntchtReadCheatProcessMemory(buffer[z] + offset2, (void*)&CustomTimeStep, 4);
+								}
+								if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
+									printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
+										(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
+									printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+									printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+									if (offset2) {
+										printf("CustomTimeStep bool: " CONSOLE_YELLOW "%d\n\n" CONSOLE_RESET, CustomTimeStep);
+									}
+									consoleUpdate(NULL);
+									ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
+									if (offset2) {
+										ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
+									}
+									findings += 1;
+								}
+							}
+						}
+						delete[] buffer;
+					}
+				}
+				if (findings > 1) {
+					printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "There are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
+				}
+				return;
 			}
 		}
 	}
@@ -351,8 +403,6 @@ void searchDescriptionsInRAM() {
 				i++;
 				continue;
 			}
-			printf("Mapping %ld / %ld\r", i+1, mappings_count);
-			consoleUpdate(NULL);
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = 0;
@@ -365,6 +415,8 @@ void searchDescriptionsInRAM() {
 					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
 					if (searchPointerInMappings(string_address, settingsArray[itr].commandName, settingsArray[itr].type, itr)) {
+						printf("Mapping %ld / %ld\r", i+1, mappings_count);
+						consoleUpdate(NULL);
 						checkedCount += 1;
 						checkedList[itr] = true;
 					}
