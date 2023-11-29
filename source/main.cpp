@@ -177,7 +177,7 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 							if (buffer_u[x] == pointer_address) {
 								if (x+1 != memoryInfoBuffers[l].size / sizeof(uint64_t) 
 									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] > 0 
-									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] <= 0x64)
+									&& (int64_t)(buffer_u[x+1]) - buffer_u[x] <= 0x98)
 								{
 									pointer2_address = memoryInfoBuffers[l].addr + (x+1)*8;
 									printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s " CONSOLE_RESET, pointer2_address - cheatMetadata.main_nso_extents.base, commandName);
