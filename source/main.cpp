@@ -58,6 +58,7 @@ template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bo
 }
 
 std::string ue4_sdk = "";
+bool isUE5 = false;
 
 bool checkIfUE4game() {
 	size_t i = 0;
@@ -77,8 +78,9 @@ bool checkIfUE4game() {
 			result = searchString(buffer_c, (char*)test_5, memoryInfoBuffers[i].size);
 			if (result) {
 				printf("%s\n", result);
-				printf("Unreal Engine 5 was not tested with this tool, program will still execute.\n");
+				printf("Brute force searching for FixedFrameRate/CustomTimeStep\nis not available for Unreal Engine 5 games.\nTool will print only offsets of struct.\n");
 				ue4_sdk = result;
+				isUE5 = true;
 				delete[] buffer_c;
 				return true;
 			}
@@ -258,8 +260,11 @@ void SearchFramerate() {
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
-			FFR_result = (char*)searchString(buffer_c, "FixedFrameRate", memoryInfoBuffers[i].size, true, true);
+			FFR_result = (char*)searchString(buffer_c, (isUE5 ? "bUseFixedFrameRate" : "FixedFrameRate"), memoryInfoBuffers[i].size, true, true);
 			if (FFR_result) {
+				if (isUE5) {
+					FFR_result = &FFR_result[4]; 
+				}
 				CTS_result = (char*)searchString(buffer_c, "CustomTimeStep", memoryInfoBuffers[i].size, true, true);
 			}
 			address = (uint64_t)buffer_c;
@@ -297,7 +302,7 @@ void SearchFramerate() {
 				while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
 					if (buffer[itr] == FFR_final_address) {
 						uint32_t offset_temp = 0;
-						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x24, (void*)&offset_temp, 4);
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 						if (offset_temp < 0x600 || offset_temp > 0x1000) {
 							itr++;
 							continue;
@@ -318,7 +323,7 @@ void SearchFramerate() {
 					while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
 						if (buffer[itr] == CTS_final_address) {
 							uint32_t offset_temp = 0;
-							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x24, (void*)&offset_temp, 4);
+							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 							if (offset_temp < 0x600 || offset_temp > 0x1000) {
 								itr++;
 								continue;
@@ -333,6 +338,7 @@ void SearchFramerate() {
 				if (offset2) {
 					printf("Offset of CustomTimeStep: 0x%x\n", offset2);
 				}
+				if (isUE5) return;
 				printf("Searching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n\n" CONSOLE_RESET);
 				consoleUpdate(NULL);
 				uint32_t findings = 0;
