@@ -60,6 +60,17 @@ template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bo
 std::string ue4_sdk = "";
 bool isUE5 = false;
 
+size_t checkAvailableHeap() {
+	size_t startSize = 200 * 1024 * 1024;
+	void* allocation = malloc(startSize);
+	while (allocation) {
+		free(allocation);
+		startSize += 1024 * 1024;
+		allocation = malloc(startSize);
+	}
+	return startSize - (1024 * 1024);
+}
+
 bool checkIfUE4game() {
 	size_t i = 0;
 	while (i < mappings_count) {
@@ -364,7 +375,7 @@ void SearchFramerate() {
 								if (offset2) {
 									dmntchtReadCheatProcessMemory(buffer[z] + offset2, (void*)&CustomTimeStep, 4);
 								}
-								if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 30.0 || float_value == 60.0)) {
+								if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 24.0 || float_value == 30.0 || float_value == 60.0)) {
 									printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
 										(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
 									printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
@@ -621,6 +632,8 @@ int main(int argc, char* argv[])
 	}
 	else {
 		pmdmntExit();
+		size_t availableHeap = checkAvailableHeap();
+		printf("Available Heap: %d MB\n", (availableHeap / (1024 * 1024)));
 		dmntchtInitialize();
 		bool hasCheatProcess = false;
 		dmntchtHasCheatProcess(&hasCheatProcess);
