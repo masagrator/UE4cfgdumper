@@ -207,7 +207,13 @@ std::array settingsArray = {
 															"  0 - Unlocked (present immediately)\n"
 															"  1 - Present every vblank interval\n"
 															"  2 - Present every 2 vblank intervals\n"
-															"  3 - etc...\n", 1}
+															"  3 - etc...\n", 1},
+	
+	UE4Setting{"r.DefaultFeature.AntiAliasing",				"Engine default (project setting) for AntiAliasingMethod is (postprocess volume/camera/game setting still can override)\n"
+															" 0: off (no anti-aliasing)\n"
+															" 1: FXAA (faster than TemporalAA but much more shimmering for non static cases)\n"
+															" 2: TemporalAA (default)\n"
+															" 3: MSAA (Forward shading only)", 1}
 };
 
 std::unordered_map<std::string, std::string> alternativeDescriptions1 = {
