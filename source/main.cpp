@@ -107,13 +107,13 @@ uint8_t testRUN() {
 	size_t i = 0;
 	uint8_t encoding = 0;
 
-	size_t size = utf8_to_utf16(nullptr, (const uint8_t*)settingsArray[0].description, 0);
+	size_t size = utf8_to_utf16(nullptr, (const uint8_t*)UE4settingsArray[0].description, 0);
 	char16_t* utf16_string = new char16_t[size+1]();
-	utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)settingsArray[0].description, size+1);
+	utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)UE4settingsArray[0].description, size+1);
 
-	size = utf8_to_utf32(nullptr, (const uint8_t*)settingsArray[0].description, 0);
+	size = utf8_to_utf32(nullptr, (const uint8_t*)UE4settingsArray[0].description, 0);
 	char32_t* utf32_string = new char32_t[size+1]();
-	utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)settingsArray[0].description, size+1);
+	utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)UE4settingsArray[0].description, size+1);
 
 	consoleUpdate(NULL);
 
@@ -121,7 +121,7 @@ uint8_t testRUN() {
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
-			char* result = searchString(buffer_c, (char*)settingsArray[0].description, memoryInfoBuffers[i].size);
+			char* result = searchString(buffer_c, (char*)UE4settingsArray[0].description, memoryInfoBuffers[i].size);
 			if (result) {
 				printf("Encoding: UTF-8\n");
 				encoding = 8;
@@ -407,12 +407,12 @@ void SearchFramerate() {
 
 void searchDescriptionsInRAM() {
 	size_t i = 0;
-	bool* checkedList = new bool[settingsArray.size()]();
-	size_t checkedCount = 0;
+	bool* UE4checkedList = new bool[UE4settingsArray.size()]();
+	size_t ue4checkedCount = 0;
 	printf("Mapping %ld / %ld\r", i+1, mappings_count);
 	consoleUpdate(NULL);
 	while (i < mappings_count) {
-		if (checkedCount == settingsArray.size()) {
+		if (ue4checkedCount == UE4settingsArray.size()) {
 			return;
 		}
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
@@ -423,19 +423,19 @@ void searchDescriptionsInRAM() {
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = 0;
-			for (size_t itr = 0; itr < settingsArray.size(); itr++) {
-				if (checkedList[itr]) {
+			for (size_t itr = 0; itr < UE4settingsArray.size(); itr++) {
+				if (UE4checkedList[itr]) {
 					continue;
 				}
-				result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, settingsArray[itr].description);
+				result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE4settingsArray[itr].description);
 				if (result) {
 					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
-					if (searchPointerInMappings(string_address, settingsArray[itr].commandName, settingsArray[itr].type, itr)) {
+					if (searchPointerInMappings(string_address, UE4settingsArray[itr].commandName, UE4settingsArray[itr].type, itr)) {
 						printf("Mapping %ld / %ld\r", i+1, mappings_count);
 						consoleUpdate(NULL);
-						checkedCount += 1;
-						checkedList[itr] = true;
+						ue4checkedCount += 1;
+						UE4checkedList[itr] = true;
 					}
 				}
 			}
@@ -444,12 +444,12 @@ void searchDescriptionsInRAM() {
 		i++;
 	}
 	printf("                                                \n");
-	for (size_t x = 0; x < settingsArray.size(); x++) {
-		if (!checkedList[x]) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", settingsArray[x].commandName);
+	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
+		if (!UE4checkedList[x]) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE4settingsArray[x].commandName);
 			consoleUpdate(NULL);
-			if (alternativeDescriptions1.contains(settingsArray[x].commandName)) {
-				printf(CONSOLE_MAGENTA "?" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " has alternative description, searching again...\n", settingsArray[x].commandName);
+			if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
+				printf(CONSOLE_MAGENTA "?" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " has alternative description, searching again...\n", UE4settingsArray[x].commandName);
 				consoleUpdate(NULL);
 				i = 0;
 				while (i < mappings_count) {
@@ -461,12 +461,12 @@ void searchDescriptionsInRAM() {
 						char* buffer_c = new char[memoryInfoBuffers[i].size];
 						dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 						char* result = 0;
-						result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, alternativeDescriptions1[settingsArray[x].commandName].c_str());
+						result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE4alternativeDescriptions1[UE4settingsArray[x].commandName].c_str());
 						if (result) {
 							ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
 							uint64_t string_address = memoryInfoBuffers[i].addr + diff;
-							if (searchPointerInMappings(string_address, settingsArray[x].commandName, settingsArray[x].type, x)) {
-								checkedList[x] = true;
+							if (searchPointerInMappings(string_address, UE4settingsArray[x].commandName, UE4settingsArray[x].type, x)) {
+								UE4checkedList[x] = true;
 								i = mappings_count;
 								continue;
 							}
@@ -475,14 +475,62 @@ void searchDescriptionsInRAM() {
 					}
 					i++;
 				}
-				if (!checkedList[x]) {
-					printf(CONSOLE_RED "!!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " alternative description search failed!\n", settingsArray[x].commandName);
+				if (!UE4checkedList[x]) {
+					printf(CONSOLE_RED "!!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " alternative description search failed!\n", UE4settingsArray[x].commandName);
 					consoleUpdate(NULL);
 				}
 			}
 		}
 	}
-	delete[] checkedList;
+	delete[] UE4checkedList;
+}
+
+void searchDescriptionsInRAM_UE5() {
+	size_t i = 0;
+	bool* UE5checkedList = new bool[UE5settingsArray.size()]();
+	size_t ue5checkedCount = 0;
+	printf("Mapping %ld / %ld\r", i+1, mappings_count);
+	consoleUpdate(NULL);
+	while (i < mappings_count) {
+		if (ue5checkedCount == UE5settingsArray.size()) {
+			return;
+		}
+		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+			if (memoryInfoBuffers[i].size > 100'000'000) {
+				i++;
+				continue;
+			}
+			char* buffer_c = new char[memoryInfoBuffers[i].size];
+			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+			char* result = 0;
+			for (size_t itr = 0; itr < UE5settingsArray.size(); itr++) {
+				if (UE5checkedList[itr]) {
+					continue;
+				}
+				result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE5settingsArray[itr].description);
+				if (result) {
+					ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
+					uint64_t string_address = memoryInfoBuffers[i].addr + diff;
+					if (searchPointerInMappings(string_address, UE5settingsArray[itr].commandName, UE5settingsArray[itr].type, itr)) {
+						printf("Mapping %ld / %ld\r", i+1, mappings_count);
+						consoleUpdate(NULL);
+						ue5checkedCount += 1;
+						UE5checkedList[itr] = true;
+					}
+				}
+			}
+			delete[] buffer_c;
+		}
+		i++;
+	}
+	printf("                                                \n");
+	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
+		if (!UE5checkedList[x]) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE5settingsArray[x].commandName);
+			consoleUpdate(NULL);
+		}
+	}
+	delete[] UE5checkedList;
 }
 
 void dumpAsCheats() {
@@ -658,22 +706,40 @@ int main(int argc, char* argv[])
 
 		//Test run
 
-		appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
-
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
+			bool FullScan = true;
+			if (!isUE5) {
+				printf("\n----------\nPress A for Full Scan\n");
+				printf("Press X for Fast Scan (it excludes FixedFrameRate and CustomTimeStep)\n\n");
+				consoleUpdate(NULL);
+				while (appletMainLoop()) {   
+					padUpdate(&pad);
+
+					u64 kDown = padGetButtonsDown(&pad);
+
+					if (kDown & HidNpadButton_A)
+						break;
+					
+					if (kDown & HidNpadButton_X) {
+						FullScan = false;
+						break;
+					}
+				}
+			}
 			printf("Searching RAM...\n\n");
 			consoleUpdate(NULL);
+			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 			searchDescriptionsInRAM();
+			if (isUE5) searchDescriptionsInRAM_UE5();
 			printf("                                                \n");
-			SearchFramerate();
+			if (FullScan) SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
 			dumpAsCheats();
 			dumpAsLog();
+			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-
-		appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
