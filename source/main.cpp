@@ -706,23 +706,40 @@ int main(int argc, char* argv[])
 
 		//Test run
 
-		appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
-
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
+			bool FullScan = true;
+			if (!isUE5) {
+				printf("\n----------\nPress A for Full Scan\n");
+				printf("Press X for Fast Scan (it excludes FixedFrameRate and CustomTimeStep)\n\n");
+				consoleUpdate(NULL);
+				while (appletMainLoop()) {   
+					padUpdate(&pad);
+
+					u64 kDown = padGetButtonsDown(&pad);
+
+					if (kDown & HidNpadButton_A)
+						break;
+					
+					if (kDown & HidNpadButton_X) {
+						FullScan = false;
+						break;
+					}
+				}
+			}
 			printf("Searching RAM...\n\n");
 			consoleUpdate(NULL);
+			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 			searchDescriptionsInRAM();
 			if (isUE5) searchDescriptionsInRAM_UE5();
 			printf("                                                \n");
-			SearchFramerate();
+			if (FullScan) SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
 			dumpAsCheats();
 			dumpAsLog();
+			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-
-		appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();

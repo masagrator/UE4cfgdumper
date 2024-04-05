@@ -16,7 +16,7 @@ std::array UE4settingsArray = {
 															" 2: good quality (default)\n"
 															" 3: very good quality but bad performance", 1},
 
-	UESetting{"r.BloomQuality",							" 0: off, no performance impact.\n"
+	UESetting{"r.BloomQuality",								" 0: off, no performance impact.\n"
 															" 1: average quality, least performance impact.\n"
 															" 2: average quality, least performance impact.\n"
 															" 3: good quality.\n"
@@ -36,7 +36,7 @@ std::array UE4settingsArray = {
 	UESetting{"r.MotionBlurQuality",						"Defines the motion blur method which allows to adjust for quality or performance.\n"
 															" 0:off, 1:low, 2:medium, 3:high (default), 4: very high", 1},
 	
-	UESetting{"r.PostProcessAAQuality",					"Defines the postprocess anti aliasing method which allows to adjust for quality or performance.\n"
+	UESetting{"r.PostProcessAAQuality",						"Defines the postprocess anti aliasing method which allows to adjust for quality or performance.\n"
 															" 0:off, 1:very low (faster FXAA), 2:low (FXAA), 3:medium (faster TemporalAA), 4:high (default TemporalAA), 5:very high, 6:max", 1},
 	
 	UESetting{"r.DepthOfFieldQuality",						"Allows to adjust the depth of field quality. Currently only fully affects BokehDOF. GaussianDOF is either 0 for off, otherwise on.\n"
@@ -46,7 +46,7 @@ std::array UE4settingsArray = {
 															" 3: very high quality, intended for non realtime cutscenes, CircleDOF only (slow)\n"
 															" 4: extremely high quality, intended for non realtime cutscenes, CircleDOF only (very slow)", 1},
 	
-	UESetting{"r.ScreenPercentage",						"To render in lower resolution and upscale for better performance (combined up with the blenable post process setting).\n"
+	UESetting{"r.ScreenPercentage",							"To render in lower resolution and upscale for better performance (combined up with the blenable post process setting).\n"
 															"70 is a good value for low aliasing and performance, can be verified with 'show TestImage'\n"
 															"in percent, >0 and <=100, larger numbers are possible (supersampling) but the downsampling quality is improvable.<0 is treated like 100.", 2},
 	
@@ -74,25 +74,25 @@ std::array UE4settingsArray = {
 															"Higher values will increase view distance but at a performance cost.\n"
 															"Default = 1.", 2},
 	
-	UESetting{"r.EyeAdaptationQuality",					"Defines the eye adaptation quality which allows to adjust for quality or performance.\n"
+	UESetting{"r.EyeAdaptationQuality",						"Defines the eye adaptation quality which allows to adjust for quality or performance.\n"
 															"<=0: off (fastest)\n"
 															"  1: low quality (e.g. non histogram based, not yet implemented)\n"
 															"  2: normal quality (default)\n"
 															"  3: high quality (e.g. screen position localized, not yet implemented)", 1},
 	
-	UESetting{"r.Shadow.DistanceScale",					"Scalability option to trade shadow distance versus performance for directional lights (clamped within a reasonable range).\n"
+	UESetting{"r.Shadow.DistanceScale",						"Scalability option to trade shadow distance versus performance for directional lights (clamped within a reasonable range).\n"
 															"<1: shorter distance\n"
 															" 1: normal (default)\n"
 															">1: larger distance", 2},
 	
-	UESetting{"r.Tonemapper.GrainQuantization",			"0: low (minor performance benefit)\n"
+	UESetting{"r.Tonemapper.GrainQuantization",				"0: low (minor performance benefit)\n"
 															"1: high (default, with high frequency pixel pattern to fight 8 bit color quantization)", 1},
 	
 	UESetting{"r.SkyLightingQuality",						"Defines the sky lighting quality which allows to adjust for performance.\n"
 															"<=0: off (fastest)\n"
 															"  1: on", 1},
 	
-	UESetting{"r.DynamicRes.OperationMode",				"Select the operation mode for dynamic resolution.\n"
+	UESetting{"r.DynamicRes.OperationMode",					"Select the operation mode for dynamic resolution.\n"
 															" 0: Disabled (default);\n"
 															" 1: Enable according to the game user settings;\n"
 															" 2: Enable regardless of the game user settings.", 1},
@@ -136,7 +136,7 @@ std::array UE4settingsArray = {
 															" 0: use spatial upscale pass independently of TAA (default);\n"
 															" 1: TemporalAA performs spatial and temporal upscale as screen percentage method.", 1},
 	
-	UESetting{"r.SSR.Quality", 							"Whether to use screen space reflections and at what quality setting.\n"
+	UESetting{"r.SSR.Quality", 								"Whether to use screen space reflections and at what quality setting.\n"
 															"(limits the setting in the post process settings which has a different scale)\n"
 															"(costs performance, adds more visual realism but the technique has limits)\n"
 															" 0: off (default)\n"
@@ -146,7 +146,7 @@ std::array UE4settingsArray = {
 															" 4: very high (likely too slow for real-time)", 1},
 	
 	/* The same description is used by Fog so we cannot reliably search for this setting
-	UESetting{"r.SubsurfaceScattering",					" 0: disabled\n"
+	UESetting{"r.SubsurfaceScattering",						" 0: disabled\n"
 															" 1: enabled (default)", 1}
 	*/
 
@@ -172,7 +172,7 @@ std::array UE4settingsArray = {
 
 	UESetting{"r.Mobile.ShadingPath",						"0: Forward shading (default)1: Deferred shading", 1},
 
-	UESetting{"r.LightFunctionQuality",					"Defines the light function quality which allows to adjust for quality or performance.\n"
+	UESetting{"r.LightFunctionQuality",						"Defines the light function quality which allows to adjust for quality or performance.\n"
 															"<=0: off (fastest)\n"
 															"  1: low quality (e.g. half res with blurring, not yet implemented)\n"
 															"  2: normal quality (default)\n"
@@ -180,7 +180,7 @@ std::array UE4settingsArray = {
 
 	UESetting{"r.SSGI.Enable",								"Whether to enable SSGI (defaults to 0).\n", 1},
 
-	UESetting{"r.SSGI.Quality",							"Quality setting to control number of ray shot with SSGI, between 1 and 4 (defaults to 4).\n", 1},
+	UESetting{"r.SSGI.Quality",								"Quality setting to control number of ray shot with SSGI, between 1 and 4 (defaults to 4).\n", 1},
 
 	UESetting{"r.GTSyncType",								"Determines how the game thread syncs with the render thread, RHI thread and GPU.\n"
 															"Syncing to the GPU swap chain flip allows for lower frame latency.\n"
@@ -213,7 +213,29 @@ std::array UE4settingsArray = {
 															" 0: off (no anti-aliasing)\n"
 															" 1: FXAA (faster than TemporalAA but much more shimmering for non static cases)\n"
 															" 2: TemporalAA (default)\n"
-															" 3: MSAA (Forward shading only)", 1}
+															" 3: MSAA (Forward shading only)", 1},
+	
+	UESetting{"r.TemporalAA.Algorithm",						"Algorithm to use for Temporal AA\n"
+															" 0: Gen 4 TAAU (default)\n"
+															" 1: Gen 5 TAAU (experimental)", 1},
+
+	UESetting{"r.TemporalAA.HistoryScreenPercentage",		"Size of temporal AA's history.", 2},
+
+	UESetting{"r.TemporalAASamples",						"Number of jittered positions for temporal AA (4, 8=default, 16, 32, 64).", 1},
+
+	UESetting{"r.TemporalAACurrentFrameWeight",				"Weight of current frame's contribution to the history.  Low values cause blurriness and ghosting, high values fail to hide jittering.", 2},
+
+	UESetting{"r.TemporalAAFilterSize",						"Size of the filter kernel. (1.0 = smoother, 0.0 = sharper but aliased).", 2},
+
+	UESetting{"r.TemporalAA.AllowDownsampling",				"Allows half-resolution color buffer to be produced during TAA. Only possible when motion blur is off and when using compute shaders for post processing.", 1},
+
+	UESetting{"r.TemporalAAUpsampleFiltered",				"Use filtering to fetch color history during TamporalAA upsampling (see AA_FILTERED define in TAA shader). Disabling this makes TAAU faster, but lower quality. ", 1},
+
+	UESetting{"r.TemporalAA.R11G11B10History",				"Select the bitdepth of the history.", 1},
+
+	UESetting{"r.TemporalAAPauseCorrect",					"Correct temporal AA in pause. This holds onto render targets longer preventing reuse and consumes more memory.", 1},
+
+	UESetting{"r.TemporalAACatmullRom",						"Whether to use a Catmull-Rom filter kernel. Should be a bit sharper than Gaussian.", 1}
 };
 
 std::unordered_map<std::string, std::string> UE4alternativeDescriptions1 = {
@@ -237,5 +259,14 @@ std::array UE5settingsArray = {
 															" 1: Fast Approximate Anti-Aliasing (FXAA)\n"
 															" 2: Temporal Anti-Aliasing (TAA)\n"
 															" 3: Multisample Anti-Aliasing (MSAA, Only available on the desktop forward renderer)\n"
-															" 4: Temporal Super-Resolution (TSR, Default)", 1}
+															" 4: Temporal Super-Resolution (TSR, Default)", 1},
+
+	UESetting{"r.TemporalAA.Quality",						"Quality of the main Temporal AA pass.\n"
+															" 0: Disable input filtering;\n"
+															" 1: Enable input filtering;\n"
+															" 2: Enable input filtering, enable mobility based anti-ghosting (Default)", 1},
+
+	UESetting{"r.TemporalAA.UseMobileConfig",				"1 to use mobile TAA config. This will disable groupshared caching of the color and depth buffers.\n"
+															" 0: disabled (default);\n"
+															" 1: enabled;\n", 1}
 };
