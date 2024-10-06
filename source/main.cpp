@@ -402,7 +402,10 @@ void SearchFramerate() {
 			}
 		}
 	}
-	if (!isUE5) printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET " On older Unreal Engine 4 games it requires different method.\n" CONSOLE_RESET);
+	printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET);
+	if (!isUE5) printf(" On older Unreal Engine 4 games it requires different method.");
+	printf("\n");
+	consoleUpdate(NULL);
 }
 
 void searchDescriptionsInRAM() {
