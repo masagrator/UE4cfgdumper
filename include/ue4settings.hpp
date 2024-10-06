@@ -237,11 +237,11 @@ std::array UE4settingsArray = {
 
 	UESetting{"r.TemporalAACatmullRom",						"Whether to use a Catmull-Rom filter kernel. Should be a bit sharper than Gaussian.", 1},
 
-	UESetting{"r.BasePassOutputsVelocity",						"Enables rendering WPO velocities on the base pass.\n"
+	UESetting{"r.BasePassOutputsVelocity",					"Enables rendering WPO velocities on the base pass.\n"
 															"0: Renders in a separate pass/rendertarget, all movable static meshes + dynamic.\n"
 															"1: Renders during the regular base pass adding an extra GBuffer, but allowing motion blur on materials with Time-based WPO.", 1},
 
-	UESetting{"r.VertexDeformationOutputsVelocity",		"Enables materials with World Position Offset and/or World Displacement to output velocities during velocity pass even when the actor has not moved. This incurs a performance cost and can be quite significant if many objects are using WPO, such as a forest of trees - in that case consider r.BasePassOutputsVelocity and disabling this option.", 1}
+	UESetting{"r.VertexDeformationOutputsVelocity",			"Enables materials with World Position Offset and/or World Displacement to output velocities during velocity pass even when the actor has not moved. This incurs a performance cost and can be quite significant if many objects are using WPO, such as a forest of trees - in that case consider r.BasePassOutputsVelocity and disabling this option.", 1}
 };
 
 std::unordered_map<std::string, std::string> UE4alternativeDescriptions1 = {
@@ -256,7 +256,42 @@ std::unordered_map<std::string, std::string> UE4alternativeDescriptions1 = {
 															"   1: full strength"},
 	
 	{"r.Mobile.ShadingPath",								"0: Forward shading (default)\n"
-															"1: Deferred shading"}
+															"1: Deferred shading"},
+};
+
+std::unordered_map<std::string, std::string> UE4toUE5alternativeDescriptions1 = {
+	{"r.DynamicRes.MinScreenPercentage",					"Minimal primary screen percentage."},
+
+	{"r.DynamicRes.MaxScreenPercentage",					"Maximal primary screen percentage. Importantly this setting controls the preallocated video memory needed by the renderer to render."},
+
+	{"r.SceneColorFringeQuality",							" 0: off but best for performance\n"
+															" 1: 3 texture samples (default)"},
+
+	{"r.ScreenPercentage",									"To render in lower resolution and upscale for better performance (combined up with the blenable post process setting).\n"
+															"70 is a good value for low aliasing and performance, can be verified with 'show TestImage'\n"
+															"in percent, >0 and <=100, larger numbers are possible (supersampling) but the downsampling quality is improvable."
+															"<=0 compute the screen percentage is determined by r.ScreenPercentage.Default cvars."},
+
+
+	{"r.Tonemapper.Sharpen",								"Sharpening in the tonemapper (not for mobile), actual implementation is work in progress, clamped at 10\n"
+															"  <0: inherit from PostProcessVolume settings (default)\n"
+															"   0: off\n"
+															" 0.5: half strength\n"
+															"   1: full strength"},
+
+	{"r.Tonemapper.Quality",								"Defines the Tonemapper Quality in the range 0..5\n"
+															"Depending on the used settings we might pick a faster shader permutation\n"
+															" 0: basic tonemapper only, lowest quality\n"
+															" 2: + Vignette\n"
+															" 4: + Grain\n"
+															" 5: + GrainJitter = full quality (default)"},
+
+	{"r.TemporalAA.Upsampling",								"Whether to do primary screen percentage with temporal AA or not.\n"
+															" 0: use spatial upscale pass independently of TAA;\n"
+															" 1: TemporalAA performs spatial and temporal upscale as screen percentage method (default)."},
+
+	{"r.Mobile.ShadingPath",								"0: Forward shading (default)\n"
+															"1: Deferred shading (Mobile HDR is required for Deferred)"}
 };
 
 std::array UE5settingsArray = {
@@ -276,7 +311,36 @@ std::array UE5settingsArray = {
 															" 0: disabled (default);\n"
 															" 1: enabled;\n", 1},
 
-	UESetting{"r.DynamicRes.MinScreenPercentage",			"Minimal primary screen percentage.", 2},
+	UESetting{"r.VelocityOutputPass",						"When to write velocity buffer.\n"
+															" 0: Renders during the depth pass. This splits the depth pass into 2 phases: with and without velocity.\n"
+															" 1: Renders during the regular base pass. This adds an extra GBuffer target during base pass rendering."
+															" 2: Renders after the regular base pass.\n", 1},
 
-	UESetting{"r.DynamicRes.MaxScreenPercentage",			"Maximal primary screen percentage. Importantly this setting controls the preallocated video memory needed by the renderer to render.", 2}
+	UESetting{"r.Velocity.EnableVertexDeformation",			"Enables materials with World Position Offset and/or World Displacement to output velocities during velocity pass even when the actor has not moved. \n"
+															"0=Off, 1=On, 2=Auto(Default). \n"
+															"Auto setting is off if r.VelocityOutputPass=2, or else on. \n"
+															"When r.VelocityOutputPass=2 this can incur a performance cost due to additional draw calls.", 1}
+};
+
+std::unordered_map<std::string, std::string> UE5alternativeDescriptions1 = {
+	{"r.TemporalAA.Quality",								"Quality of the main Temporal AA pass.\n"
+															" 0: Disable input filtering;\n"
+															" 1: Enable input filtering;\n"
+															" 2: Enable more input filtering, enable mobility based anti-ghosting (Default)\n"
+															" 3: Quality 1 input filtering, enable anti-ghosting"}
+
+};
+
+std::unordered_map<std::string, std::string> UE5DeprecatedUE4Settings = {
+	{"r.PostProcessAAQuality",				""},
+	{"r.MobileMSAA",						""},
+	{"r.Tonemapper.GrainQuantization",		""},
+	{"r.SSGI.Enable",						""},
+	{"r.TonemapperFilm",					""},
+	{"r.DefaultFeature.AntiAliasing",		""},
+	{"r.TemporalAA.Algorithm",				""},
+	{"r.TemporalAA.AllowDownsampling",		""},
+	{"r.TemporalAAUpsampleFiltered",		""},
+	{"r.BasePassOutputsVelocity", 			"Use r.VelocityOutputPass instead."},
+	{"r.VertexDeformationOutputsVelocity",	"Use r.Velocity.EnableVertexDeformation instead."}
 };

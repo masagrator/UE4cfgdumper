@@ -402,7 +402,7 @@ void SearchFramerate() {
 			}
 		}
 	}
-	printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET " On older Unreal Engine 4 games it requires different method.\n" CONSOLE_RESET);
+	if (!isUE5) printf(CONSOLE_CYAN "FixedFrameRate string was not found!" CONSOLE_RESET " On older Unreal Engine 4 games it requires different method.\n" CONSOLE_RESET);
 }
 
 void searchDescriptionsInRAM() {
@@ -446,11 +446,12 @@ void searchDescriptionsInRAM() {
 	printf("                                                \n");
 	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
 		if (!UE4checkedList[x]) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE4settingsArray[x].commandName);
-			consoleUpdate(NULL);
+			if (isUE5) {
+				if (UE5DeprecatedUE4Settings.contains(UE4settingsArray[x].commandName)) {
+					continue;
+				}
+			}
 			if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
-				printf(CONSOLE_MAGENTA "?" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " has alternative description, searching again...\n", UE4settingsArray[x].commandName);
-				consoleUpdate(NULL);
 				i = 0;
 				while (i < mappings_count) {
 					if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
@@ -475,12 +476,61 @@ void searchDescriptionsInRAM() {
 					}
 					i++;
 				}
-				if (!UE4checkedList[x]) {
-					printf(CONSOLE_RED "!!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " alternative description search failed!\n", UE4settingsArray[x].commandName);
-					consoleUpdate(NULL);
+			}
+		}
+		if (isUE5 && !UE4checkedList[x]) {
+			if (UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
+				i = 0;
+				while (i < mappings_count) {
+					if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+						if (memoryInfoBuffers[i].size > 100'000'000) {
+							i++;
+							continue;
+						}
+						char* buffer_c = new char[memoryInfoBuffers[i].size];
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+						char* result = 0;
+						result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE4toUE5alternativeDescriptions1[UE4settingsArray[x].commandName].c_str());
+						if (result) {
+							ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
+							uint64_t string_address = memoryInfoBuffers[i].addr + diff;
+							if (searchPointerInMappings(string_address, UE4settingsArray[x].commandName, UE4settingsArray[x].type, x)) {
+								UE4checkedList[x] = true;
+								i = mappings_count;
+								continue;
+							}
+						}
+						delete[] buffer_c;
+					}
+					i++;
 				}
 			}
 		}
+	}
+	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
+		if (UE4checkedList[x])
+			continue;
+		if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE4 alt description!\n", UE4settingsArray[x].commandName);
+			consoleUpdate(NULL);
+			continue;
+		}
+		if (isUE5 && UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt description!\n", UE4settingsArray[x].commandName);
+			consoleUpdate(NULL);
+			continue;
+		}
+		if (isUE5 && UE5DeprecatedUE4Settings.contains(UE4settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was deprecated on UE5!", UE4settingsArray[x].commandName);
+			if (UE5DeprecatedUE4Settings[UE4settingsArray[x].commandName].compare("")) {
+				printf(CONSOLE_CYAN " %s" CONSOLE_RESET, UE5DeprecatedUE4Settings[UE4settingsArray[x].commandName].c_str());
+			}
+			printf("\n");
+			consoleUpdate(NULL);
+			continue;
+		}
+		printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE4settingsArray[x].commandName);
+		consoleUpdate(NULL);
 	}
 	delete[] UE4checkedList;
 }
@@ -489,6 +539,8 @@ void searchDescriptionsInRAM_UE5() {
 	size_t i = 0;
 	bool* UE5checkedList = new bool[UE5settingsArray.size()]();
 	size_t ue5checkedCount = 0;
+	printf("\n---\nLooking for UE5 specific settings...\n---\n");
+	consoleUpdate(NULL);
 	printf("Mapping %ld / %ld\r", i+1, mappings_count);
 	consoleUpdate(NULL);
 	while (i < mappings_count) {
@@ -525,10 +577,47 @@ void searchDescriptionsInRAM_UE5() {
 	}
 	printf("                                                \n");
 	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
-		if (!UE5checkedList[x]) {
+		if (UE5alternativeDescriptions1.contains(UE5settingsArray[x].commandName)) {
+			i = 0;
+			while (i < mappings_count) {
+				if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+					if (memoryInfoBuffers[i].size > 100'000'000) {
+						i++;
+						continue;
+					}
+					char* buffer_c = new char[memoryInfoBuffers[i].size];
+					dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+					char* result = 0;
+					result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE5alternativeDescriptions1[UE5settingsArray[x].commandName].c_str());
+					if (result) {
+						ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
+						uint64_t string_address = memoryInfoBuffers[i].addr + diff;
+						if (searchPointerInMappings(string_address, UE5settingsArray[x].commandName, UE5settingsArray[x].type, x)) {
+							UE5checkedList[x] = true;
+							i = mappings_count;
+							continue;
+						}
+					}
+					delete[] buffer_c;
+				}
+				i++;
+			}
+		}
+		else if (!UE5checkedList[x]) {
 			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE5settingsArray[x].commandName);
 			consoleUpdate(NULL);
 		}
+	}
+	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
+		if (UE5checkedList[x])
+			continue;
+		if (UE5alternativeDescriptions1.contains(UE5settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with alt description!\n", UE5settingsArray[x].commandName);
+			consoleUpdate(NULL);
+			continue;
+		}
+		printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found!\n", UE5settingsArray[x].commandName);
+		consoleUpdate(NULL);
 	}
 	delete[] UE5checkedList;
 }
