@@ -39,6 +39,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 APP_TITLE   :=  UE4cfgdumper
 APP_VERSION :=  1.1.1
+APP_AUTHOR  :=  MasaGratoR
 TARGET		:=	$(APP_TITLE)
 BUILD		:=	build
 SOURCES		:=	source
