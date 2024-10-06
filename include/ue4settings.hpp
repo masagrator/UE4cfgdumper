@@ -235,7 +235,13 @@ std::array UE4settingsArray = {
 
 	UESetting{"r.TemporalAAPauseCorrect",					"Correct temporal AA in pause. This holds onto render targets longer preventing reuse and consumes more memory.", 1},
 
-	UESetting{"r.TemporalAACatmullRom",						"Whether to use a Catmull-Rom filter kernel. Should be a bit sharper than Gaussian.", 1}
+	UESetting{"r.TemporalAACatmullRom",						"Whether to use a Catmull-Rom filter kernel. Should be a bit sharper than Gaussian.", 1},
+
+	UESetting{"r.BasePassOutputsVelocity",						"Enables rendering WPO velocities on the base pass.\n"
+															"0: Renders in a separate pass/rendertarget, all movable static meshes + dynamic.\n"
+															"1: Renders during the regular base pass adding an extra GBuffer, but allowing motion blur on materials with Time-based WPO.", 1},
+
+	UESetting{"r.VertexDeformationOutputsVelocity",		"Enables materials with World Position Offset and/or World Displacement to output velocities during velocity pass even when the actor has not moved. This incurs a performance cost and can be quite significant if many objects are using WPO, such as a forest of trees - in that case consider r.BasePassOutputsVelocity and disabling this option.", 1}
 };
 
 std::unordered_map<std::string, std::string> UE4alternativeDescriptions1 = {
