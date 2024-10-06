@@ -274,5 +274,9 @@ std::array UE5settingsArray = {
 
 	UESetting{"r.TemporalAA.UseMobileConfig",				"1 to use mobile TAA config. This will disable groupshared caching of the color and depth buffers.\n"
 															" 0: disabled (default);\n"
-															" 1: enabled;\n", 1}
+															" 1: enabled;\n", 1},
+
+	UESetting{"r.DynamicRes.MinScreenPercentage",			"Minimal primary screen percentage.", 2},
+
+	UESetting{"r.DynamicRes.MaxScreenPercentage",			"Maximal primary screen percentage. Importantly this setting controls the preallocated video memory needed by the renderer to render.", 2}
 };
