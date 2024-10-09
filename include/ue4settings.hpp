@@ -294,6 +294,12 @@ std::unordered_map<std::string, std::string> UE4toUE5alternativeDescriptions1 = 
 															"1: Deferred shading (Mobile HDR is required for Deferred)"}
 };
 
+std::unordered_map<std::string, std::string> UE4toUE5alternativeDescriptions2 = {
+
+	{"r.DynamicRes.MaxScreenPercentage",					"Maximal primary screen percentage."}
+	
+};
+
 std::array UE5settingsArray = {
 	UESetting{"r.AntiAliasingMethod",						"Engine default (project setting) for AntiAliasingMethod is (postprocess volume/camera/game setting still can override)\n"
 															" 0: off (no anti-aliasing)\n"

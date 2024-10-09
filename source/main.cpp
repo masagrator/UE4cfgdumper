@@ -472,7 +472,6 @@ void searchDescriptionsInRAM() {
 							if (searchPointerInMappings(string_address, UE4settingsArray[x].commandName, UE4settingsArray[x].type, x)) {
 								UE4checkedList[x] = true;
 								i = mappings_count;
-								continue;
 							}
 						}
 						delete[] buffer_c;
@@ -500,7 +499,33 @@ void searchDescriptionsInRAM() {
 							if (searchPointerInMappings(string_address, UE4settingsArray[x].commandName, UE4settingsArray[x].type, x)) {
 								UE4checkedList[x] = true;
 								i = mappings_count;
-								continue;
+							}
+						}
+						delete[] buffer_c;
+					}
+					i++;
+				}
+			}
+		}
+		if (isUE5 && !UE4checkedList[x]) {
+			if (UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
+				i = 0;
+				while (i < mappings_count) {
+					if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
+						if (memoryInfoBuffers[i].size > 100'000'000) {
+							i++;
+							continue;
+						}
+						char* buffer_c = new char[memoryInfoBuffers[i].size];
+						dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+						char* result = 0;
+						result = findStringInBuffer(buffer_c, memoryInfoBuffers[i].size, UE4toUE5alternativeDescriptions2[UE4settingsArray[x].commandName].c_str());
+						if (result) {
+							ptrdiff_t diff = (uint64_t)result - (uint64_t)buffer_c;
+							uint64_t string_address = memoryInfoBuffers[i].addr + diff;
+							if (searchPointerInMappings(string_address, UE4settingsArray[x].commandName, UE4settingsArray[x].type, x)) {
+								UE4checkedList[x] = true;
+								i = mappings_count;
 							}
 						}
 						delete[] buffer_c;
@@ -513,13 +538,18 @@ void searchDescriptionsInRAM() {
 	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
 		if (UE4checkedList[x])
 			continue;
-		if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
+		if (UE4alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
 			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE4 alt description!\n", UE4settingsArray[x].commandName);
 			consoleUpdate(NULL);
 			continue;
 		}
-		if (isUE5 && UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName)) {
-			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt description!\n", UE4settingsArray[x].commandName);
+		if (isUE5 && UE4toUE5alternativeDescriptions1.contains(UE4settingsArray[x].commandName) && !UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt 1 description!\n", UE4settingsArray[x].commandName);
+			consoleUpdate(NULL);
+			continue;
+		}
+		if (isUE5 && UE4toUE5alternativeDescriptions2.contains(UE4settingsArray[x].commandName)) {
+			printf(CONSOLE_RED "!" CONSOLE_RESET ": " CONSOLE_CYAN "%s" CONSOLE_RESET " was not found even with UE5 alt 2 description!\n", UE4settingsArray[x].commandName);
 			consoleUpdate(NULL);
 			continue;
 		}
@@ -598,7 +628,6 @@ void searchDescriptionsInRAM_UE5() {
 						if (searchPointerInMappings(string_address, UE5settingsArray[x].commandName, UE5settingsArray[x].type, x)) {
 							UE5checkedList[x] = true;
 							i = mappings_count;
-							continue;
 						}
 					}
 					delete[] buffer_c;
@@ -773,7 +802,7 @@ int main(int argc, char* argv[])
 	else {
 		pmdmntExit();
 		size_t availableHeap = checkAvailableHeap();
-		printf("Available Heap: %d MB\n", (availableHeap / (1024 * 1024)));
+		printf("Available Heap: %ld MB\n", (availableHeap / (1024 * 1024)));
 		dmntchtInitialize();
 		bool hasCheatProcess = false;
 		dmntchtHasCheatProcess(&hasCheatProcess);
