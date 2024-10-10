@@ -37,14 +37,14 @@ include $(DEVKITPRO)/libnx/switch_rules
 #   of a homebrew executable (.nro). This is intended to be used for sysmodules.
 #   NACP building is skipped as well.
 #---------------------------------------------------------------------------------
-APP_TITLE   :=  UE4cfgdumper
-APP_VERSION :=  1.1.2
-APP_AUTHOR  :=  MasaGratoR
+APP_TITLE   :=  UnityFuncDumper
+APP_VERSION :=  1.1.1
+APP_AUTHOR	:=  MasaGratoR
 TARGET		:=	$(APP_TITLE)
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source libs/armadillo/source
 DATA		:=	data
-INCLUDES	:=	include
+INCLUDES	:=	include libs/armadillo/source
 #ROMFS	:=	romfs
 
 #---------------------------------------------------------------------------------
