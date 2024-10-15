@@ -850,7 +850,7 @@ int main(int argc, char* argv[])
 			bool FullScan = true;
 			if (!isUE5) {
 				printf("\n----------\nPress A for Full Scan\n");
-				printf("Press X for Fast Scan (it excludes FixedFrameRate and CustomTimeStep)");
+				printf("Press X for Fast Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
 				printf("Press + to Exit\n\n");
 				consoleUpdate(NULL);
 				while (appletMainLoop()) {   
