@@ -310,7 +310,7 @@ void SearchFramerate() {
 			consoleUpdate(NULL);
 		}
 		for (size_t x = 0; x < mappings_count; x++) {
-			if ((memoryInfoBuffers[x].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
+			if ((memoryInfoBuffers[x].perm & Perm_Rx) != Perm_Rx && (memoryInfoBuffers[x].type == MemType_CodeMutable || memoryInfoBuffers[x].type == MemType_CodeWritable)) {
 				if (memoryInfoBuffers[x].addr < cheatMetadata.main_nso_extents.base) {
 					continue;
 				}
