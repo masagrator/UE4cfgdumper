@@ -330,8 +330,18 @@ void SearchFramerate() {
 						uint32_t offset_temp = 0;
 						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 						if (offset_temp < 0x600 || offset_temp > 0x1000) {
-							itr++;
-							continue;
+							if (isUE5) {
+								offset_temp = 0;
+								dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x32, (void*)&offset_temp, 2);
+								if (offset_temp < 0x600 || offset_temp > 0x1000) {
+									itr++;
+									continue;
+								}
+							}
+							else {
+								itr++;
+								continue;
+							}
 						}
 						offset = offset_temp;
 						break;
@@ -351,8 +361,18 @@ void SearchFramerate() {
 							uint32_t offset_temp = 0;
 							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 							if (offset_temp < 0x600 || offset_temp > 0x1000) {
-								itr++;
-								continue;
+								if (isUE5) {
+									offset_temp = 0;
+									dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x32, (void*)&offset_temp, 2);
+									if (offset_temp < 0x600 || offset_temp > 0x1000) {
+										itr++;
+										continue;
+									}
+								}
+								else {
+									itr++;
+									continue;
+								}
 							}
 							offset2 = offset_temp;
 							break;
