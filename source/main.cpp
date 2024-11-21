@@ -11,6 +11,10 @@
 #include "ue4settings.hpp"
 #include <string>
 #include <sys/stat.h>
+extern "C" {
+#include "armadillo.h"
+#include "strext.h"
+}
 
 DmntCheatProcessMetadata cheatMetadata = {0};
 u64 mappings_count = 0;
@@ -92,7 +96,6 @@ bool checkIfUE4game() {
 			result = searchString(buffer_c, (char*)test_5, memoryInfoBuffers[i].size);
 			if (result) {
 				printf("%s\n", result);
-				printf("Brute force searching for FixedFrameRate/CustomTimeStep\nis not available for Unreal Engine 5 games.\nTool will print only offsets of struct.\n");
 				ue4_sdk = result;
 				isUE5 = true;
 				delete[] buffer_c;
@@ -382,59 +385,65 @@ void SearchFramerate() {
 				}
 				delete[] buffer;
 				if (offset2) {
-					printf("Offset of CustomTimeStep: 0x%x\n", offset2);
+					printf("Offset of " CONSOLE_YELLOW " CustomTimeStep" CONSOLE_RESET ": 0x%x\n", offset2);
 				}
-				if (isUE5) return;
-				printf("Searching for main pointer, " CONSOLE_WHITE "OS may not respond until finished...\n\n" CONSOLE_RESET);
 				consoleUpdate(NULL);
-				uint32_t findings = 0;
 				for (size_t y = 0; y < mappings_count; y++) {
-					if (memoryInfoBuffers[y].addr < cheatMetadata.main_nso_extents.base) {
+					if (memoryInfoBuffers[y].addr != cheatMetadata.main_nso_extents.base) {
 						continue;
 					}
-					if (memoryInfoBuffers[y].addr >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size) {
-						continue;
-					}
-					if (memoryInfoBuffers[y].size > 200'000'000) {
-						continue;
-					}
-					if ((memoryInfoBuffers[y].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[y].type == MemType_CodeMutable || memoryInfoBuffers[y].type == MemType_CodeWritable)) {
-						printf("Mapping %ld / %ld\r", y+1, mappings_count);
-						consoleUpdate(NULL);
-						buffer = new uint64_t[memoryInfoBuffers[y].size / sizeof(uint64_t)];
-						dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer, memoryInfoBuffers[y].size);
-						for (size_t z = 0; z < (memoryInfoBuffers[y].size / sizeof(uint64_t)); z++) {
-							if (buffer[z] % 0x1000 == 0) {
+					uint8_t* buffer_two = new uint8_t[memoryInfoBuffers[y].size];
+					dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer_two, memoryInfoBuffers[y].size);
+					uint8_t pattern[] = {0xA8, 0x99, 0x99, 0x52, 0x88, 0xB9, 0xA7, 0x72, 0x01, 0x10, 0x2C, 0x1E, 0x00, 0x01, 0x27, 0x1E, 0x60, 0x01, 0x80, 0x52};
+					auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]);
+					if (it != &buffer_two[memoryInfoBuffers[y].size]) {
+						auto distance = std::distance(buffer_two, it);
+						uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
+						uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
+						ad_insn *insn = NULL;
+						uint32_t main_offset = 0;
+						ArmadilloDisassemble(first_instruction, distance, &insn);
+						if (insn -> instr_id == AD_INSTR_ADRP) {
+							main_offset = insn -> operands[1].op_imm.bits;
+							ArmadilloDone(&insn);
+							ArmadilloDisassemble(second_instruction, distance * 4, &insn);
+							if (insn -> instr_id == AD_INSTR_LDR && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
+								main_offset += insn -> operands[2].op_imm.bits;
+								ArmadilloDone(&insn);
+								uint64_t GameEngine_ptr = 0;
+								dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
+								printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
+								uint64_t GameEngine = 0;
+								dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
 								uint32_t bitflags = 0;
-								float float_value = 0;
-								dmntchtReadCheatProcessMemory(buffer[z] + offset, (void*)&float_value, 4);
-								dmntchtReadCheatProcessMemory(buffer[z] + offset - 4, (void*)&bitflags, 4);
-								int32_t CustomTimeStep = 0;
+								dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
+								printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
+								printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+								printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+								float FixedFrameRate = 0;
+								dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
+								printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
+								ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
 								if (offset2) {
-									dmntchtReadCheatProcessMemory(buffer[z] + offset2, (void*)&CustomTimeStep, 4);
-								}
-								if ((bitflags == 7 || bitflags == 0x27 || bitflags == 0x47 || bitflags == 0x67) && (float_value == 0.0 || float_value == 24.0 || float_value == 30.0 || float_value == 60.0)) {
-									printf("FFR potential main offset: " CONSOLE_YELLOW "0x%lx" CONSOLE_RESET", float: " CONSOLE_YELLOW"%.2f" CONSOLE_RESET"\nFlags: " CONSOLE_YELLOW"0x%x\n" CONSOLE_RESET, 
-										(memoryInfoBuffers[y].addr + (z * 8)) - cheatMetadata.main_nso_extents.base, float_value, bitflags);
-									printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-									printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
-									if (offset2) {
-										printf("CustomTimeStep bool: " CONSOLE_YELLOW "%d\n\n" CONSOLE_RESET, CustomTimeStep);
-									}
-									consoleUpdate(NULL);
-									ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, float_value, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset - 4});
-									if (offset2) {
-										ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(memoryInfoBuffers[y].addr + (z * 8) - cheatMetadata.main_nso_extents.base), offset + 0x18});
-									}
-									findings += 1;
+									int CustomTimeStep = 0;
+									dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
+									printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
+									ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
 								}
 							}
+							else {
+								ArmadilloDone(&insn);
+								printf("Second instruction is not LDR! %s\n", insn -> decoded);
+							}
 						}
-						delete[] buffer;
+						else {
+							ArmadilloDone(&insn);
+							printf("First instruction is not ADRP! %s\n", insn -> decoded);
+						}
 					}
-				}
-				if (findings > 1) {
-					printf(CONSOLE_MAGENTA "?: " CONSOLE_WHITE "There are more than 1 possible candidate for FixedFrameRate address!\n" CONSOLE_RESET);
+					else printf("Couldn't find pattern for GameEngine struct!\n");
+					consoleUpdate(NULL);
+					delete[] buffer_two;
 				}
 				return;
 			}
@@ -868,29 +877,27 @@ int main(int argc, char* argv[])
 
 		if (checkIfUE4game() && (utf_encoding = testRUN())) {
 			bool FullScan = true;
-			if (!isUE5) {
-				printf("\n----------\nPress A for Full Scan\n");
-				printf("Press X for Fast Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
-				printf("Press + to Exit\n\n");
-				consoleUpdate(NULL);
-				while (appletMainLoop()) {   
-					padUpdate(&pad);
+			printf("\n----------\nPress A for Full Scan\n");
+			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
+			printf("Press + to Exit\n\n");
+			consoleUpdate(NULL);
+			while (appletMainLoop()) {   
+				padUpdate(&pad);
 
-					u64 kDown = padGetButtonsDown(&pad);
+				u64 kDown = padGetButtonsDown(&pad);
 
-					if (kDown & HidNpadButton_A)
-						break;
+				if (kDown & HidNpadButton_A)
+					break;
 
-					if (kDown & HidNpadButton_Plus) {
-						dmntchtExit();
-						consoleExit(NULL);
-						return 0;
-					}
-					
-					if (kDown & HidNpadButton_X) {
-						FullScan = false;
-						break;
-					}
+				if (kDown & HidNpadButton_Plus) {
+					dmntchtExit();
+					consoleExit(NULL);
+					return 0;
+				}
+				
+				if (kDown & HidNpadButton_X) {
+					FullScan = false;
+					break;
 				}
 			}
 			printf("Searching RAM...\n\n");
