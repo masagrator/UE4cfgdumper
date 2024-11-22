@@ -270,6 +270,8 @@ char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* descrip
 }
 
 void SearchFramerate() {
+	uint32_t offset = 0;
+	uint32_t offset2 = 0;
 	for (size_t i = 0; i < mappings_count; i++) {
 		if (memoryInfoBuffers[i].addr < cheatMetadata.main_nso_extents.base) {
 			continue;
@@ -325,8 +327,6 @@ void SearchFramerate() {
 				}
 				uint64_t* buffer = new uint64_t[memoryInfoBuffers[x].size / sizeof(uint64_t)];
 				dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
-				uint32_t offset = 0;
-				uint32_t offset2 = 0;
 				size_t itr = 0;
 				while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
 					if (buffer[itr] == FFR_final_address) {
@@ -388,64 +388,6 @@ void SearchFramerate() {
 					printf("Offset of " CONSOLE_YELLOW " CustomTimeStep" CONSOLE_RESET ": 0x%x\n", offset2);
 				}
 				consoleUpdate(NULL);
-				for (size_t y = 0; y < mappings_count; y++) {
-					if (memoryInfoBuffers[y].addr != cheatMetadata.main_nso_extents.base) {
-						continue;
-					}
-					uint8_t* buffer_two = new uint8_t[memoryInfoBuffers[y].size];
-					dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer_two, memoryInfoBuffers[y].size);
-					uint8_t pattern[] = {0xA8, 0x99, 0x99, 0x52, 0x88, 0xB9, 0xA7, 0x72, 0x01, 0x10, 0x2C, 0x1E, 0x00, 0x01, 0x27, 0x1E, 0x60, 0x01, 0x80, 0x52};
-					auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]);
-					if (it != &buffer_two[memoryInfoBuffers[y].size]) {
-						auto distance = std::distance(buffer_two, it);
-						uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
-						uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
-						ad_insn *insn = NULL;
-						uint32_t main_offset = 0;
-						ArmadilloDisassemble(first_instruction, distance, &insn);
-						if (insn -> instr_id == AD_INSTR_ADRP) {
-							main_offset = insn -> operands[1].op_imm.bits;
-							ArmadilloDone(&insn);
-							ArmadilloDisassemble(second_instruction, distance * 4, &insn);
-							if (insn -> instr_id == AD_INSTR_LDR && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
-								main_offset += insn -> operands[2].op_imm.bits;
-								ArmadilloDone(&insn);
-								uint64_t GameEngine_ptr = 0;
-								dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
-								printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
-								uint64_t GameEngine = 0;
-								dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
-								uint32_t bitflags = 0;
-								dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
-								printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
-								printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-								printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
-								float FixedFrameRate = 0;
-								dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
-								printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
-								ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
-								if (offset2) {
-									int CustomTimeStep = 0;
-									dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
-									printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
-									ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
-								}
-							}
-							else {
-								ArmadilloDone(&insn);
-								printf("Second instruction is not LDR! %s\n", insn -> decoded);
-							}
-						}
-						else {
-							ArmadilloDone(&insn);
-							printf("First instruction is not ADRP! %s\n", insn -> decoded);
-						}
-					}
-					else printf("Couldn't find pattern for GameEngine struct!\n");
-					consoleUpdate(NULL);
-					delete[] buffer_two;
-				}
-				return;
 			}
 		}
 	}
@@ -453,6 +395,65 @@ void SearchFramerate() {
 	if (!isUE5) printf(" On older Unreal Engine 4 games it requires different method.");
 	printf("\n");
 	consoleUpdate(NULL);
+	for (size_t y = 0; y < mappings_count; y++) {
+		if (memoryInfoBuffers[y].addr != cheatMetadata.main_nso_extents.base) {
+			continue;
+		}
+		uint8_t* buffer_two = new uint8_t[memoryInfoBuffers[y].size];
+		dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer_two, memoryInfoBuffers[y].size);
+		uint8_t pattern[] = {0xA8, 0x99, 0x99, 0x52, 0x88, 0xB9, 0xA7, 0x72, 0x01, 0x10, 0x2C, 0x1E, 0x00, 0x01, 0x27, 0x1E, 0x60, 0x01, 0x80, 0x52};
+		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]);
+		if (it != &buffer_two[memoryInfoBuffers[y].size]) {
+			auto distance = std::distance(buffer_two, it);
+			uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
+			uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
+			ad_insn *insn = NULL;
+			uint32_t main_offset = 0;
+			ArmadilloDisassemble(first_instruction, distance, &insn);
+			if (insn -> instr_id == AD_INSTR_ADRP) {
+				main_offset = insn -> operands[1].op_imm.bits;
+				ArmadilloDone(&insn);
+				ArmadilloDisassemble(second_instruction, distance * 4, &insn);
+				if (insn -> instr_id == AD_INSTR_LDR && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
+					main_offset += insn -> operands[2].op_imm.bits;
+					ArmadilloDone(&insn);
+					uint64_t GameEngine_ptr = 0;
+					dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
+					printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
+					uint64_t GameEngine = 0;
+					dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
+					if (offset) {
+						uint32_t bitflags = 0;
+						dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
+						printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
+						printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+						printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+						float FixedFrameRate = 0;
+						dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
+						printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
+						ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
+					}
+					if (offset2) {
+						int CustomTimeStep = 0;
+						dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
+						printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
+						ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
+					}
+				}
+				else {
+					ArmadilloDone(&insn);
+					printf("Second instruction is not LDR! %s\n", insn -> decoded);
+				}
+			}
+			else {
+				ArmadilloDone(&insn);
+				printf("First instruction is not ADRP! %s\n", insn -> decoded);
+			}
+		}
+		else printf("Couldn't find pattern for GameEngine struct!\n");
+		consoleUpdate(NULL);
+		delete[] buffer_two;
+	}
 }
 
 void searchDescriptionsInRAM() {
