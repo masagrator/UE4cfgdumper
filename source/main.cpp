@@ -404,12 +404,13 @@ void SearchFramerate() {
 		uint8_t* buffer_two = new uint8_t[memoryInfoBuffers[y].size];
 		dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer_two, memoryInfoBuffers[y].size);
 		uint8_t pattern_number = 1;
+		// A8 99 99 52 88 B9 A7 72 01 10 2C 1E 00 01 27 1E 60 01 80 52
 		uint8_t pattern[] = {	0xA8, 0x99, 0x99, 0x52,		//mov  w8, #0xcccd
 								0x88, 0xB9, 0xA7, 0x72, 	//movk w8, #0x3dcc, lsl #16
 								0x01, 0x10, 0x2C, 0x1E, 	//fmov s1, #0.5
 								0x00, 0x01, 0x27, 0x1E, 	//fmov s0, w8
 								0x60, 0x01, 0x80, 0x52};	//mov  w0, #0xb
-								
+		// F7 37 68 22 40 39
 		uint8_t pattern_2[] = {	/**/  /**/  0xF7, 0x37, 	//tbnz w9, #0x1E, *
 								0x68, 0x22, 0x40, 0x39};	//ldrb w8, [x19, #8]
 		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
@@ -421,6 +422,7 @@ void SearchFramerate() {
 			auto distance = std::distance(buffer_two, it);
 			uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
 			uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
+			uint32_t second_alt_instruction = 0;
 			switch(pattern_number) {
 				case 1:
 					distance = distance-(8 * 4);
@@ -428,6 +430,7 @@ void SearchFramerate() {
 				case 2:
 					first_instruction = *(uint32_t*)&buffer_two[(distance-2) + (3 * 4)];
 					second_instruction = *(uint32_t*)&buffer_two[(distance-2) + (5 * 4)];
+					second_alt_instruction = *(uint32_t*)&buffer_two[(distance-2) + (4 * 4)];
 					distance = (distance-2) + (3 * 4);
 					break;
 			}
@@ -438,6 +441,10 @@ void SearchFramerate() {
 				main_offset = insn -> operands[1].op_imm.bits;
 				ArmadilloDone(&insn);
 				ArmadilloDisassemble(second_instruction, distance * 4, &insn);
+				if (insn -> num_operands == 2) {
+					ArmadilloDone(&insn);
+					ArmadilloDisassemble(second_alt_instruction, distance * 4, &insn);
+				}
 				if ((insn -> instr_id == AD_INSTR_LDR || insn -> instr_id == AD_INSTR_STR) && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
 					main_offset += insn -> operands[2].op_imm.bits;
 					ArmadilloDone(&insn);
@@ -472,13 +479,13 @@ void SearchFramerate() {
 					}
 				}
 				else {
+					printf("Second instruction is not expected LDR or STR! %s\n", insn -> decoded);
 					ArmadilloDone(&insn);
-					printf("Second instruction is not LDR or STR! %s\n", insn -> decoded);
 				}
 			}
 			else {
-				ArmadilloDone(&insn);
 				printf("First instruction is not ADRP! %s\n", insn -> decoded);
+				ArmadilloDone(&insn);
 			}
 		}
 		else printf("Couldn't find pattern for GameEngine struct!\n");
