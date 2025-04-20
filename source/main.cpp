@@ -413,10 +413,17 @@ void SearchFramerate() {
 		// F7 37 68 22 40 39
 		uint8_t pattern_2[] = {	/**/  /**/  0xF7, 0x37, 	//tbnz w9, #0x1E, *
 								0x68, 0x22, 0x40, 0x39};	//ldrb w8, [x19, #8]
+		// 08 20 40 39 08 01 20 37
+		uint8_t pattern_3[] = {	0x08, 0x20, 0x40, 0x39, 	//ldrb w8, [x0, #8]
+								0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #0x24
 		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
 		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
 			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_2, &pattern_2[sizeof(pattern_2)]); //Deconstructor pattern
 			pattern_number = 2;
+		}
+		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
+			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_3, &pattern_3[sizeof(pattern_3)]); //Deconstructor pattern 2
+			pattern_number = 3;
 		}
 		if (it != &buffer_two[memoryInfoBuffers[y].size]) {
 			auto distance = std::distance(buffer_two, it);
@@ -432,6 +439,11 @@ void SearchFramerate() {
 					second_instruction = *(uint32_t*)&buffer_two[(distance-2) + (5 * 4)];
 					second_alt_instruction = *(uint32_t*)&buffer_two[(distance-2) + (4 * 4)];
 					distance = (distance-2) + (3 * 4);
+					break;
+				case 3:
+					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
+					second_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
+					distance += 2 * 4;
 					break;
 			}
 			ad_insn *insn = NULL;
@@ -454,6 +466,7 @@ void SearchFramerate() {
 							dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
 							break;
 						case 2:
+						case 3:
 							GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 							break;
 					}
