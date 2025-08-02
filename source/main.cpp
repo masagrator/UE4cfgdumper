@@ -280,6 +280,7 @@ void SearchFramerate() {
 			continue;
 		}
 		char* FFR_result = 0;
+		char* FFR2_result = 0;
 		char* CTS_result = 0;
 		uint64_t address = 0;
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].perm & Perm_Rx) != Perm_Rx && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
@@ -292,6 +293,8 @@ void SearchFramerate() {
 			if (!FFR_result) {
 				FFR_result = (char*)searchString(buffer_c, "bUseFixedFrameRate", memoryInfoBuffers[i].size, true, true);
 				if (FFR_result) FFR_result = &FFR_result[4]; 
+				FFR2_result = (char*)searchString(buffer_c, "bFixedFrameRate", memoryInfoBuffers[i].size, true, true);
+				if (FFR2_result) FFR2_result = &FFR2_result[1]; 				
 			}
 			CTS_result = (char*)searchString(buffer_c, "CustomTimeStep", memoryInfoBuffers[i].size, true, true);
 			address = (uint64_t)buffer_c;
@@ -302,6 +305,8 @@ void SearchFramerate() {
 
 		ptrdiff_t FFR_diff = (uint64_t)FFR_result - address;
 		uint64_t FFR_final_address = memoryInfoBuffers[i].addr + FFR_diff;
+		ptrdiff_t FFR2_diff = (uint64_t)FFR2_result - address;
+		uint64_t FFR2_final_address = memoryInfoBuffers[i].addr + FFR2_diff;
 
 		ptrdiff_t CTS_diff = 0;
 		uint64_t CTS_final_address = 0;
@@ -328,7 +333,7 @@ void SearchFramerate() {
 				dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
 				size_t itr = 0;
 				while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
-					if (buffer[itr] == FFR_final_address) {
+					if (buffer[itr] == FFR_final_address || buffer[itr] == FFR2_final_address) {
 						uint32_t offset_temp = 0;
 						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 						if (offset_temp < 0x600 || offset_temp > 0x1000) {
