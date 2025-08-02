@@ -280,6 +280,7 @@ void SearchFramerate() {
 			continue;
 		}
 		char* FFR_result = 0;
+		char* FFR2_result = 0;
 		char* CTS_result = 0;
 		uint64_t address = 0;
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].perm & Perm_Rx) != Perm_Rx && (memoryInfoBuffers[i].type == MemType_CodeStatic || memoryInfoBuffers[i].type == MemType_CodeReadOnly)) {
@@ -292,6 +293,8 @@ void SearchFramerate() {
 			if (!FFR_result) {
 				FFR_result = (char*)searchString(buffer_c, "bUseFixedFrameRate", memoryInfoBuffers[i].size, true, true);
 				if (FFR_result) FFR_result = &FFR_result[4]; 
+				FFR2_result = (char*)searchString(buffer_c, "bFixedFrameRate", memoryInfoBuffers[i].size, true, true);
+				if (FFR2_result) FFR2_result = &FFR2_result[1]; 				
 			}
 			CTS_result = (char*)searchString(buffer_c, "CustomTimeStep", memoryInfoBuffers[i].size, true, true);
 			address = (uint64_t)buffer_c;
@@ -302,6 +305,8 @@ void SearchFramerate() {
 
 		ptrdiff_t FFR_diff = (uint64_t)FFR_result - address;
 		uint64_t FFR_final_address = memoryInfoBuffers[i].addr + FFR_diff;
+		ptrdiff_t FFR2_diff = (uint64_t)FFR2_result - address;
+		uint64_t FFR2_final_address = memoryInfoBuffers[i].addr + FFR2_diff;
 
 		ptrdiff_t CTS_diff = 0;
 		uint64_t CTS_final_address = 0;
@@ -328,7 +333,7 @@ void SearchFramerate() {
 				dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr, (void*)buffer, memoryInfoBuffers[x].size);
 				size_t itr = 0;
 				while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
-					if (buffer[itr] == FFR_final_address) {
+					if (buffer[itr] == FFR_final_address || buffer[itr] == FFR2_final_address) {
 						uint32_t offset_temp = 0;
 						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
 						if (offset_temp < 0x600 || offset_temp > 0x1000) {
@@ -416,6 +421,9 @@ void SearchFramerate() {
 		// 08 20 40 39 08 01 20 37
 		uint8_t pattern_3[] = {	0x08, 0x20, 0x40, 0x39, 	//ldrb w8, [x0, #8]
 								0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #0x24
+		// 68 0A 40 B9 88 03 20 37
+		uint8_t pattern_4[] = {	0x68, 0x0A, 0x40, 0xB9, 	//ldr  w8, [x19, #8]
+								0x88, 0x03, 0x20, 0x37};	//tbnz w8, #4, #0x70
 		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
 		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
 			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_2, &pattern_2[sizeof(pattern_2)]); //Deconstructor pattern
@@ -424,6 +432,10 @@ void SearchFramerate() {
 		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
 			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_3, &pattern_3[sizeof(pattern_3)]); //Deconstructor pattern 2
 			pattern_number = 3;
+		}
+		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
+			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_4, &pattern_4[sizeof(pattern_4)]); //Deconstructor pattern 3
+			pattern_number = 4;
 		}
 		if (it != &buffer_two[memoryInfoBuffers[y].size]) {
 			auto distance = std::distance(buffer_two, it);
@@ -443,6 +455,11 @@ void SearchFramerate() {
 				case 3:
 					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
 					second_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
+					distance += 2 * 4;
+					break;
+				case 4:
+					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
+					second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
 					distance += 2 * 4;
 					break;
 			}
@@ -467,6 +484,7 @@ void SearchFramerate() {
 							break;
 						case 2:
 						case 3:
+						case 4:
 							GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 							break;
 					}
