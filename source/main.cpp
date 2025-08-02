@@ -484,6 +484,7 @@ void SearchFramerate() {
 							break;
 						case 2:
 						case 3:
+						case 4:
 							GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 							break;
 					}
