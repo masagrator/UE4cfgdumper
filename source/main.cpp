@@ -420,10 +420,13 @@ void SearchFramerate() {
 								0x68, 0x22, 0x40, 0x39};	//ldrb w8, [x19, #8]
 		// 08 20 40 39 08 01 20 37
 		uint8_t pattern_3[] = {	0x08, 0x20, 0x40, 0x39, 	//ldrb w8, [x0, #8]
-								0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #0x24
+								0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
 		// 68 0A 40 B9 88 03 20 37
 		uint8_t pattern_4[] = {	0x68, 0x0A, 0x40, 0xB9, 	//ldr  w8, [x19, #8]
-								0x88, 0x03, 0x20, 0x37};	//tbnz w8, #4, #0x70
+								0x88, 0x03, 0x20, 0x37};	//tbnz w8, #4, #PC+0x70
+		// 29 02 F0 36 09 00 A8 52
+		uint8_t pattern_5[] = {	0x29, 0x02, 0xF0, 0x36, 	//tbz w9, #0x1e, #0x44
+								0x09, 0x00, 0xA8, 0x52};	//MOV W9, #0x40000000
 		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
 		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
 			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_2, &pattern_2[sizeof(pattern_2)]); //Deconstructor pattern
@@ -436,6 +439,10 @@ void SearchFramerate() {
 		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
 			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_4, &pattern_4[sizeof(pattern_4)]); //Deconstructor pattern 3
 			pattern_number = 4;
+		}
+		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
+			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_5, &pattern_5[sizeof(pattern_5)]); //Deconstructor pattern 3
+			pattern_number = 5;
 		}
 		if (it != &buffer_two[memoryInfoBuffers[y].size]) {
 			auto distance = std::distance(buffer_two, it);
@@ -458,8 +465,9 @@ void SearchFramerate() {
 					distance += 2 * 4;
 					break;
 				case 4:
-					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
-					second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
+				case 5:
+					first_instruction = *(uint32_t*)&buffer_two[distance + (6 * 4)];
+					second_instruction = *(uint32_t*)&buffer_two[distance + (8 * 4)];
 					distance += 2 * 4;
 					break;
 			}
@@ -485,6 +493,7 @@ void SearchFramerate() {
 						case 2:
 						case 3:
 						case 4:
+						case 5:
 							GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 							break;
 					}
