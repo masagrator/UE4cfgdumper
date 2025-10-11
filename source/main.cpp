@@ -465,6 +465,10 @@ void SearchFramerate() {
 					distance += 2 * 4;
 					break;
 				case 4:
+					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
+					second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
+					distance += 2 * 4;
+					break;
 				case 5:
 					first_instruction = *(uint32_t*)&buffer_two[distance + (6 * 4)];
 					second_instruction = *(uint32_t*)&buffer_two[distance + (8 * 4)];
@@ -1019,4 +1023,5 @@ int main(int argc, char* argv[])
 	ue4_vector.clear();
 	consoleExit(NULL);
 	return 0;
+
 }
