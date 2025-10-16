@@ -336,6 +336,7 @@ void SearchFramerate() {
 					if (buffer[itr] == FFR_final_address || buffer[itr] == FFR2_final_address) {
 						uint32_t offset_temp = 0;
 						dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
+						if (!offset_temp && !isUE5) dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x28, (void*)&offset_temp, 4);
 						if (offset_temp < 0x600 || offset_temp > 0x1000) {
 							if (isUE5) {
 								offset_temp = 0;
@@ -360,13 +361,18 @@ void SearchFramerate() {
 					continue;
 				}
 
-				printf("Offset of " CONSOLE_YELLOW "FixedFrameRate" CONSOLE_RESET ": 0x%x\n", offset);
-				consoleUpdate(NULL);
+				static bool printed = false;
+				if (!printed) {
+					printf("Offset of " CONSOLE_YELLOW "FixedFrameRate" CONSOLE_RESET ": 0x%x\n", offset);
+					consoleUpdate(NULL);
+					printed = true;
+				}
 				if (CTS_final_address) {
 					while (itr < (memoryInfoBuffers[x].size / sizeof(uint64_t))) {
 						if (buffer[itr] == CTS_final_address) {
 							uint32_t offset_temp = 0;
 							dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + (isUE5 ? 0x38 : 0x24), (void*)&offset_temp, 4);
+							if (!offset_temp && !isUE5) dmntchtReadCheatProcessMemory(memoryInfoBuffers[x].addr + itr*8 + 0x28, (void*)&offset_temp, 4);
 							if (offset_temp < 0x600 || offset_temp > 0x1000) {
 								if (isUE5) {
 									offset_temp = 0;
@@ -408,133 +414,160 @@ void SearchFramerate() {
 		}
 		uint8_t* buffer_two = new uint8_t[memoryInfoBuffers[y].size];
 		dmntchtReadCheatProcessMemory(memoryInfoBuffers[y].addr, (void*)buffer_two, memoryInfoBuffers[y].size);
-		uint8_t pattern_number = 1;
-		// A8 99 99 52 88 B9 A7 72 01 10 2C 1E 00 01 27 1E 60 01 80 52
-		uint8_t pattern[] = {	0xA8, 0x99, 0x99, 0x52,		//mov  w8, #0xcccd
-								0x88, 0xB9, 0xA7, 0x72, 	//movk w8, #0x3dcc, lsl #16
-								0x01, 0x10, 0x2C, 0x1E, 	//fmov s1, #0.5
-								0x00, 0x01, 0x27, 0x1E, 	//fmov s0, w8
-								0x60, 0x01, 0x80, 0x52};	//mov  w0, #0xb
-		// F7 37 68 22 40 39
-		uint8_t pattern_2[] = {	/**/  /**/  0xF7, 0x37, 	//tbnz w9, #0x1E, *
-								0x68, 0x22, 0x40, 0x39};	//ldrb w8, [x19, #8]
-		// 08 20 40 39 08 01 20 37
-		uint8_t pattern_3[] = {	0x08, 0x20, 0x40, 0x39, 	//ldrb w8, [x0, #8]
-								0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
-		// 68 0A 40 B9 88 03 20 37
-		uint8_t pattern_4[] = {	0x68, 0x0A, 0x40, 0xB9, 	//ldr  w8, [x19, #8]
-								0x88, 0x03, 0x20, 0x37};	//tbnz w8, #4, #PC+0x70
-		// 29 02 F0 36 09 00 A8 52
-		uint8_t pattern_5[] = {	0x29, 0x02, 0xF0, 0x36, 	//tbz w9, #0x1e, #0x44
-								0x09, 0x00, 0xA8, 0x52};	//MOV W9, #0x40000000
-		auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
-		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
-			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_2, &pattern_2[sizeof(pattern_2)]); //Deconstructor pattern
-			pattern_number = 2;
-		}
-		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
-			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_3, &pattern_3[sizeof(pattern_3)]); //Deconstructor pattern 2
-			pattern_number = 3;
-		}
-		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
-			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_4, &pattern_4[sizeof(pattern_4)]); //Deconstructor pattern 3
-			pattern_number = 4;
-		}
-		if (it == &buffer_two[memoryInfoBuffers[y].size]) {
-			it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_5, &pattern_5[sizeof(pattern_5)]); //Deconstructor pattern 3
-			pattern_number = 5;
-		}
-		if (it != &buffer_two[memoryInfoBuffers[y].size]) {
-			auto distance = std::distance(buffer_two, it);
-			uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
-			uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
-			uint32_t second_alt_instruction = 0;
-			switch(pattern_number) {
-				case 1:
-					distance = distance-(8 * 4);
-					break;
-				case 2:
-					first_instruction = *(uint32_t*)&buffer_two[(distance-2) + (3 * 4)];
-					second_instruction = *(uint32_t*)&buffer_two[(distance-2) + (5 * 4)];
-					second_alt_instruction = *(uint32_t*)&buffer_two[(distance-2) + (4 * 4)];
-					distance = (distance-2) + (3 * 4);
-					break;
-				case 3:
-					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
-					second_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
-					distance += 2 * 4;
-					break;
-				case 4:
-					first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
-					second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
-					distance += 2 * 4;
-					break;
-				case 5:
-					first_instruction = *(uint32_t*)&buffer_two[distance + (6 * 4)];
-					second_instruction = *(uint32_t*)&buffer_two[distance + (8 * 4)];
-					distance += 2 * 4;
-					break;
+		while(true) {
+			uint8_t pattern_number = 1;
+			// A8 99 99 52 88 B9 A7 72 01 10 2C 1E 00 01 27 1E 60 01 80 52
+			uint8_t pattern[] = {	0xA8, 0x99, 0x99, 0x52,		//mov  w8, #0xcccd
+									0x88, 0xB9, 0xA7, 0x72, 	//movk w8, #0x3dcc, lsl #16
+									0x01, 0x10, 0x2C, 0x1E, 	//fmov s1, #0.5
+									0x00, 0x01, 0x27, 0x1E, 	//fmov s0, w8
+									0x60, 0x01, 0x80, 0x52};	//mov  w0, #0xb
+			// F7 37 68 22 40 39
+			uint8_t pattern_2[] = {	/**/  /**/  0xF7, 0x37, 	//tbnz w9, #0x1E, *
+									0x68, 0x22, 0x40, 0x39};	//ldrb w8, [x19, #8]
+			// 08 20 40 39 08 01 20 37
+			uint8_t pattern_3[] = {	0x08, 0x20, 0x40, 0x39, 	//ldrb w8, [x0, #8]
+									0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
+			// 68 0A 40 B9 88 03 20 37
+			uint8_t pattern_4[] = {	0x68, 0x0A, 0x40, 0xB9, 	//ldr  w8, [x19, #8]
+									0x88, 0x03, 0x20, 0x37};	//tbnz w8, #4, #PC+0x70
+			// 29 02 F0 36 09 00 A8 52
+			uint8_t pattern_5[] = {	0x29, 0x02, 0xF0, 0x36, 	//tbz w9, #0x1e, #0x44
+									0x09, 0x00, 0xA8, 0x52};	//MOV W9, #0x40000000
+
+			// 09 09 00 B9 68 22 40 39 08 01 20 37
+			uint8_t pattern_6[] = {	0x09, 0x09, 0x00, 0xB9,     //str w9, [x8, #8]
+									0x68, 0x22, 0x40, 0x39, 	//ldrb w8, [x19, #8]
+									0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
+			
+			static bool skip_pattern[7] = {0};
+
+			auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[2]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_2, &pattern_2[sizeof(pattern_2)]); //Deconstructor pattern
+				pattern_number = 2;
 			}
-			ad_insn *insn = NULL;
-			uint32_t main_offset = 0;
-			ArmadilloDisassemble(first_instruction, distance, &insn);
-			if (insn -> instr_id == AD_INSTR_ADRP) {
-				main_offset = insn -> operands[1].op_imm.bits;
-				ArmadilloDone(&insn);
-				ArmadilloDisassemble(second_instruction, distance * 4, &insn);
-				if (insn -> num_operands == 2) {
-					ArmadilloDone(&insn);
-					ArmadilloDisassemble(second_alt_instruction, distance * 4, &insn);
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[3]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_3, &pattern_3[sizeof(pattern_3)]); //Deconstructor pattern 2
+				pattern_number = 3;
+			}
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[4]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_4, &pattern_4[sizeof(pattern_4)]); //Deconstructor pattern 3
+				pattern_number = 4;
+			}
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[5]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_5, &pattern_5[sizeof(pattern_5)]); //Deconstructor pattern 3
+				pattern_number = 5;
+			}
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[6]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_6, &pattern_6[sizeof(pattern_6)]); //Deconstructor pattern 3
+				pattern_number = 6;
+			}
+			if (it != &buffer_two[memoryInfoBuffers[y].size]) {
+				auto distance = std::distance(buffer_two, it);
+				uint32_t first_instruction = *(uint32_t*)&buffer_two[distance-(8 * 4)];
+				uint32_t second_instruction = *(uint32_t*)&buffer_two[distance-(7 * 4)];
+				uint32_t second_alt_instruction = 0;
+				switch(pattern_number) {
+					case 1:
+						distance = distance-(8 * 4);
+						break;
+					case 2:
+						first_instruction = *(uint32_t*)&buffer_two[(distance-2) + (3 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[(distance-2) + (5 * 4)];
+						second_alt_instruction = *(uint32_t*)&buffer_two[(distance-2) + (4 * 4)];
+						distance = (distance-2) + (3 * 4);
+						break;
+					case 3:
+						first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
+						distance += 2 * 4;
+						break;
+					case 4:
+						first_instruction = *(uint32_t*)&buffer_two[distance + (2 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
+						distance += 2 * 4;
+						break;
+					case 5:
+						first_instruction = *(uint32_t*)&buffer_two[distance + (6 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[distance + (8 * 4)];
+						distance += 6 * 4;
+						break;
+					case 6:
+						first_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
+						distance += 3 * 4;
+						break;
 				}
-				if ((insn -> instr_id == AD_INSTR_LDR || insn -> instr_id == AD_INSTR_STR) && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
-					main_offset += insn -> operands[2].op_imm.bits;
+				ad_insn *insn = NULL;
+				uint32_t main_offset = 0;
+				ArmadilloDisassemble(first_instruction, distance, &insn);
+				if (insn -> instr_id == AD_INSTR_ADRP) {
+					main_offset = insn -> operands[1].op_imm.bits;
 					ArmadilloDone(&insn);
-					uint64_t GameEngine_ptr = 0;
-					switch(pattern_number) {
-						case 1:
-							dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
-							break;
-						case 2:
-						case 3:
-						case 4:
-						case 5:
-							GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
-							break;
+					ArmadilloDisassemble(second_instruction, distance * 4, &insn);
+					if (insn -> num_operands == 2) {
+						ArmadilloDone(&insn);
+						ArmadilloDisassemble(second_alt_instruction, distance * 4, &insn);
 					}
-					printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
-					uint64_t GameEngine = 0;
-					dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
-					if (offset) {
-						uint32_t bitflags = 0;
-						dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
-						printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
-						printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
-						printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
-						float FixedFrameRate = 0;
-						dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
-						printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
-						ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
+					if ((insn -> instr_id == AD_INSTR_LDR || insn -> instr_id == AD_INSTR_STR) && insn -> num_operands == 3 && insn -> operands[2].type == AD_OP_IMM) {
+						main_offset += insn -> operands[2].op_imm.bits;
+						ArmadilloDone(&insn);
+						uint64_t GameEngine_ptr = 0;
+						switch(pattern_number) {
+							case 1:
+								dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + main_offset, (void*)&GameEngine_ptr, 8);
+								break;
+							case 2:
+							case 3:
+							case 4:
+							case 5:
+							case 6:
+								GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
+								break;
+						}
+						printf("Main offset of GameEngine pointer: " CONSOLE_YELLOW "0x%lX\n" CONSOLE_RESET, GameEngine_ptr - cheatMetadata.main_nso_extents.base);
+						uint64_t GameEngine = 0;
+						dmntchtReadCheatProcessMemory(GameEngine_ptr, (void*)&GameEngine, 8);
+						if (offset) {
+							uint32_t bitflags = 0;
+							dmntchtReadCheatProcessMemory(GameEngine + (offset - 4), (void*)&bitflags, 4);
+							printf("Bitflags: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, bitflags);
+							printf("bUseFixedFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x40));
+							printf("bSmoothFrameRate bool: " CONSOLE_YELLOW "%x\n" CONSOLE_RESET, (bool)(bitflags & 0x20));
+							float FixedFrameRate = 0;
+							dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
+							printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
+							ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
+						}
+						if (offset2) {
+							int CustomTimeStep = 0;
+							dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
+							printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
+							ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
+						}
 					}
-					if (offset2) {
-						int CustomTimeStep = 0;
-						dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
-						printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
-						ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
+					else {
+						printf("Second instruction is not expected LDR or STR! %s\n", insn -> decoded);
+						ArmadilloDone(&insn);
+						consoleUpdate(NULL);
+						skip_pattern[pattern_number] = true;
+						continue;
 					}
 				}
 				else {
-					printf("Second instruction is not expected LDR or STR! %s\n", insn -> decoded);
+					printf("First instruction is not ADRP! %s\n", insn -> decoded);
 					ArmadilloDone(&insn);
+					consoleUpdate(NULL);
+					skip_pattern[pattern_number] = true;
+					continue;
 				}
 			}
-			else {
-				printf("First instruction is not ADRP! %s\n", insn -> decoded);
-				ArmadilloDone(&insn);
-			}
+			else printf("Couldn't find pattern for GameEngine struct!\n");
+			consoleUpdate(NULL);
+			delete[] buffer_two;
+			return;
 		}
-		else printf("Couldn't find pattern for GameEngine struct!\n");
-		consoleUpdate(NULL);
-		delete[] buffer_two;
 	}
 }
 
