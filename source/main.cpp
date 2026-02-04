@@ -439,8 +439,13 @@ void SearchFramerate() {
 			uint8_t pattern_6[] = {	0x09, 0x09, 0x00, 0xB9,     //str w9, [x8, #8]
 									0x68, 0x22, 0x40, 0x39, 	//ldrb w8, [x19, #8]
 									0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
+
+			// F6 FF FF 17 68 22 40 39 08 01 20 37
+			uint8_t pattern_7[] = {	0xF6, 0xFF, 0xFF, 0x17,     //b -0x28
+									0x68, 0x22, 0x40, 0x39, 	//ldrb w8, [x19, #8]
+									0x08, 0x01, 0x20, 0x37};	//tbnz w8, #4, #PC+0x20
 			
-			static bool skip_pattern[7] = {0};
+			static bool skip_pattern[8] = {0};
 
 			auto it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern, &pattern[sizeof(pattern)]); //Default constructor pattern
 			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[2]) {
@@ -462,6 +467,10 @@ void SearchFramerate() {
 			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[6]) {
 				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_6, &pattern_6[sizeof(pattern_6)]); //Deconstructor pattern 3
 				pattern_number = 6;
+			}
+			if (it == &buffer_two[memoryInfoBuffers[y].size] && !skip_pattern[7]) {
+				it = std::search(buffer_two, &buffer_two[memoryInfoBuffers[y].size], pattern_7, &pattern_7[sizeof(pattern_7)]); //Deconstructor pattern 3
+				pattern_number = 7;
 			}
 			if (it != &buffer_two[memoryInfoBuffers[y].size]) {
 				auto distance = std::distance(buffer_two, it);
@@ -497,6 +506,10 @@ void SearchFramerate() {
 						first_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
 						second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
 						distance += 3 * 4;
+					case 7:
+						first_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
+						second_instruction = *(uint32_t*)&buffer_two[distance + (5 * 4)];
+						distance += 3 * 4;
 						break;
 				}
 				ad_insn *insn = NULL;
@@ -523,6 +536,7 @@ void SearchFramerate() {
 							case 4:
 							case 5:
 							case 6:
+							case 7:
 								GameEngine_ptr = cheatMetadata.main_nso_extents.base + main_offset;
 								break;
 						}
