@@ -506,6 +506,7 @@ void SearchFramerate() {
 						first_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
 						second_instruction = *(uint32_t*)&buffer_two[distance + (4 * 4)];
 						distance += 3 * 4;
+						break;
 					case 7:
 						first_instruction = *(uint32_t*)&buffer_two[distance + (3 * 4)];
 						second_instruction = *(uint32_t*)&buffer_two[distance + (5 * 4)];
@@ -1072,3 +1073,4 @@ int main(int argc, char* argv[])
 	return 0;
 
 }
+
