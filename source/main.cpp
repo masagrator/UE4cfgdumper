@@ -64,6 +64,7 @@ template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bo
 std::string ue4_sdk = "";
 bool isUE5 = false;
 bool isUE5v2 = false;
+std::pair<uintptr_t, size_t> ue5v2_rodata = {};
 
 size_t checkAvailableHeap() {
 	size_t startSize = 200 * 1024 * 1024;
@@ -129,6 +130,7 @@ uint8_t testRUN() {
 	while (i < mappings_count) {
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
 			if (memoryInfoBuffers[i].size > 200'000'000) {
+				i++;
 				continue;
 			}
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
@@ -167,6 +169,58 @@ uint8_t testRUN() {
 	delete[] utf16_string;
 	delete[] utf32_string;
 	printf("Encoding not detected...");
+	return encoding;
+}
+
+uint8_t test2RUN() { //Only Unreal Engine 5.8.0 or newer
+	size_t i = 0;
+	uint8_t encoding = 0;
+
+	size_t size = utf8_to_utf16(nullptr, (const uint8_t*)UE4settingsArray[0].commandName, 0);
+	char16_t* utf16_string = new char16_t[size+1]();
+	utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)UE4settingsArray[0].commandName, size+1);
+
+	size = utf8_to_utf32(nullptr, (const uint8_t*)UE4settingsArray[0].commandName, 0);
+	char32_t* utf32_string = new char32_t[size+1]();
+	utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)UE4settingsArray[0].commandName, size+1);
+
+	consoleUpdate(NULL);
+
+	while (i < mappings_count) {
+		auto addr = memoryInfoBuffers[i].addr;
+		i++;
+		if (cheatMetadata.main_nso_extents.base == addr) break;
+	}
+	ue5v2_rodata.first = memoryInfoBuffers[i].addr;
+	ue5v2_rodata.second = memoryInfoBuffers[i].size;
+	char* buffer_c = new char[memoryInfoBuffers[i].size];
+	dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+	char* result = searchString(buffer_c, (char*)UE4settingsArray[0].commandName, memoryInfoBuffers[i].size);
+	if (result) {
+		printf("Encoding: UTF-8\n");
+		encoding = 8;
+		consoleUpdate(NULL);
+	}
+	if (!encoding) {
+		char16_t* result16 = searchString(buffer_c, utf16_string, memoryInfoBuffers[i].size);
+		if (result16) {
+			printf("Encoding: UTF-16\n");
+			encoding = 16;
+			consoleUpdate(NULL);
+		}
+	}
+	if (!encoding) {
+		char32_t* result32 = searchString(buffer_c, utf32_string, memoryInfoBuffers[i].size);
+		if (result32) {
+			printf("Encoding: UTF-32\n");
+			encoding = 32;
+			consoleUpdate(NULL);
+		}
+	}
+	delete[] buffer_c;
+	delete[] utf16_string;
+	delete[] utf32_string;
+	if (!encoding) printf("Encoding not detected...");
 	return encoding;
 }
 
@@ -217,13 +271,13 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 											int data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("int: " CONSOLE_YELLOW "%d\n" CONSOLE_RESET, data);
-											ue4_vector.push_back({commandName, false, data, 0.0, main_offset, 0});
+											ue4_vector.emplace_back(commandName, false, data, 0.0, main_offset, 0);
 										}
 										else if (type == 2) {
 											float data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("float: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, data);
-											ue4_vector.push_back({commandName, true, 0, data, main_offset, 0});
+											ue4_vector.emplace_back(commandName, true, 0, data, main_offset, 0);
 										}
 										else {
 											printf("Unknown type: %d\n", type);
@@ -250,23 +304,23 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 	return false;
 }
 
-char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* description) {
+char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* description, bool checkWithNull = false) {
 	char* result = 0;
 	if (utf_encoding == 8) {
-		result = (char*)searchString(buffer_c, (char*)description, buffer_size);
+		result = (char*)searchString(buffer_c, (char*)description, buffer_size, checkWithNull, checkWithNull);
 	}
 	else if (utf_encoding == 16) {
 		size_t size = utf8_to_utf16(nullptr, (const uint8_t*)description, 0);
 		char16_t* utf16_string = new char16_t[size+1]();
 		utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)description, size+1);
-		result = (char*)searchString(buffer_c, utf16_string, buffer_size);
+		result = (char*)searchString(buffer_c, utf16_string, buffer_size, checkWithNull, checkWithNull);
 		delete[] utf16_string;
 	}
 	else {
 		size_t size = utf8_to_utf32(nullptr, (const uint8_t*)description, 0);
 		char32_t* utf32_string = new char32_t[size+1]();
 		utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)description, size+1);
-		result = (char*)searchString(buffer_c, utf32_string, buffer_size);
+		result = (char*)searchString(buffer_c, utf32_string, buffer_size, checkWithNull, checkWithNull);
 		delete[] utf32_string;
 	}
 	return result;
@@ -556,13 +610,13 @@ void SearchFramerate() {
 							float FixedFrameRate = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
 							printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
-							ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
+							ue4_vector.emplace_back("FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4);
 						}
 						if (offset2) {
 							int CustomTimeStep = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
 							printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
-							ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
+							ue4_vector.emplace_back("CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2);
 						}
 					}
 					else {
@@ -932,6 +986,187 @@ void dumpAsLog() {
 	printf("\n");
 }
 
+struct vector_setting {
+	const char* name;
+	ptrdiff_t offset;
+	bool isFloat;
+};
+
+std::vector<vector_setting> commands_ptr_cache = {};
+bool* found = 0;
+
+void getCommandsPointers() {
+	printf("Getting Commands Pointers...\n");
+	consoleUpdate(NULL);
+	char* buffer_c = new char[ue5v2_rodata.second];
+	dmntchtReadCheatProcessMemory(ue5v2_rodata.first, (void*)buffer_c, ue5v2_rodata.second);
+	size_t array_size = UE4settingsArray.size();
+	ptrdiff_t rodata_offset = ue5v2_rodata.first - cheatMetadata.main_nso_extents.base;
+	for (size_t i = 0; i < array_size; i++) {
+		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE4settingsArray[i].commandName);
+		consoleUpdate(NULL);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE4settingsArray[i].commandName, true);
+		if (result) {
+			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
+			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, memory_offset, UE4settingsArray[i].type == 2);
+		}
+		else {
+			printf("                                                                                \r");
+			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
+		}
+	}
+	array_size = UE5settingsArray.size();
+	for (size_t i = 0; i < array_size; i++) {
+		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE5settingsArray[i].commandName);
+		consoleUpdate(NULL);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5settingsArray[i].commandName, true);
+		if (result) {
+			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
+			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, memory_offset, UE5settingsArray[i].type == 2);
+		}
+		else {
+			printf("                                                                                \r");
+			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
+		}
+	}
+	array_size = UE5_8_ExclusiveCommands.size();
+	for (size_t i = 0; i < array_size; i++) {
+		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE5_8_ExclusiveCommands[i].commandName);
+		consoleUpdate(NULL);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5_8_ExclusiveCommands[i].commandName, true);
+		if (result) {
+			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
+			commands_ptr_cache.emplace_back(UE5_8_ExclusiveCommands[i].commandName, memory_offset, UE5_8_ExclusiveCommands[i].type == 2);
+		}
+		else {
+			printf("                                                                                \r");
+			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE5_8_ExclusiveCommands[i].commandName);
+		}
+	}
+	printf("                                                                                \r");
+	delete[] buffer_c;
+	if (commands_ptr_cache.size() == 0) {
+		printf("No command was found in rodata of main!\n");
+		consoleUpdate(NULL);
+	}
+	return;
+}
+
+void searchInAssembly() {
+	if (commands_ptr_cache.size() == 0) return;
+	printf("Searching in Assembly...\n");
+	consoleUpdate(NULL);
+	uintptr_t addr = cheatMetadata.main_nso_extents.base;
+	size_t i = 0;
+	while (i < mappings_count) {
+		if (addr == memoryInfoBuffers[i].addr) break;
+		i++;
+	}
+	uint32_t* buffer_c = new uint32_t[memoryInfoBuffers[i].size / 4];
+	dmntchtReadCheatProcessMemory(addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+	ad_insn *insn = NULL;
+	size_t x = 0;
+	size_t amount_of_instructions = memoryInfoBuffers[i].size / 4;
+	printf("To check: %ld instructions.\n", amount_of_instructions);
+	consoleUpdate(NULL);
+	for (; x < amount_of_instructions; x++) {
+		if ((buffer_c[x] & 0x9F000000) != 0x90000000)
+			continue;
+		if (x % 0x1000 == 0) {
+			printf("Checked %ld %%\r", (x*100) / amount_of_instructions);
+			consoleUpdate(NULL);			
+		}
+		ArmadilloDisassemble(buffer_c[x], x * 4, &insn);
+		if (insn->instr_id != AD_INSTR_ADRP || insn->operands[0].op_reg.rn != 2) {
+			ArmadilloDone(&insn);
+			continue;
+		}
+		x++;
+		ad_insn *insn2 = NULL;
+		ArmadilloDisassemble(buffer_c[x], x * 4, &insn2);
+		if (insn2->instr_id != AD_INSTR_ADD || insn2->operands[0].op_reg.rn != 2 || insn2->operands[1].op_reg.rn != 2) {
+			ArmadilloDone(&insn);
+			ArmadilloDone(&insn2);
+			continue;
+		}
+		ptrdiff_t string_main_offset = (ptrdiff_t)insn->operands[1].op_imm.bits + insn2->operands[2].op_imm.bits;
+		ptrdiff_t ptrstruct_main_offset = 0;
+		ArmadilloDone(&insn);
+		ArmadilloDone(&insn2);
+		int y = -2;
+		bool wasADRP = false;
+		for (; y >= -3; y--) {
+			ArmadilloDisassemble(buffer_c[x+y], (x+y) * 4, &insn);
+			if (insn->instr_id == AD_INSTR_ADRP && insn->operands[0].op_reg.rn == 0) {
+				ptrstruct_main_offset = insn->operands[1].op_imm.bits;
+				ArmadilloDone(&insn);
+				wasADRP = true;
+				break;
+			}
+			if (insn->instr_id == AD_INSTR_ADD && insn->operands[0].op_reg.rn == 0 && insn->operands[1].op_reg.rn == 0) {
+				ptrstruct_main_offset = insn->operands[2].op_imm.bits;
+				ArmadilloDone(&insn);
+				break;
+			}
+			ArmadilloDone(&insn);
+		}
+		if (ptrstruct_main_offset == 0) {
+			continue;
+		}
+		if (wasADRP == false) {
+			y--;
+			ArmadilloDisassemble(buffer_c[x+y], (x+y) * 4, &insn);
+			if (insn->instr_id != AD_INSTR_ADRP || insn->operands[0].op_reg.rn != 0) {
+				ArmadilloDone(&insn);
+				continue;
+			}
+			ptrstruct_main_offset += insn->operands[1].op_imm.bits;
+			ArmadilloDone(&insn);
+		}
+
+		auto it = std::find_if(commands_ptr_cache.begin(), commands_ptr_cache.end(), [&](const vector_setting& entry) {
+			return entry.offset == string_main_offset;
+		});
+
+		if (it != commands_ptr_cache.end()) {
+			ptrstruct_main_offset += 0x10;
+			
+			uintptr_t address = 0;
+			dmntchtReadCheatProcessMemory(addr+ptrstruct_main_offset, &address, 8);
+			if (it->isFloat == false) {
+				int32_t value = 0;
+				dmntchtReadCheatProcessMemory(address, &value, 4);
+				printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s" CONSOLE_RESET ", value: " CONSOLE_WHITE "%d" CONSOLE_RESET, ptrstruct_main_offset, it->name, value);
+				ue4_vector.emplace_back(it->name, false, value, 0.0, ptrstruct_main_offset, 0);
+			}
+			else {
+				float value = 0;
+				dmntchtReadCheatProcessMemory(address, &value, 4);
+				printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s" CONSOLE_RESET ", value: " CONSOLE_WHITE "%.4f" CONSOLE_RESET, ptrstruct_main_offset, it->name, value);
+				ue4_vector.emplace_back(it->name, true, 0, value, ptrstruct_main_offset, 0);
+			}
+			printf("\n");
+			consoleUpdate(NULL);
+		}
+	}
+	delete[] buffer_c;
+	
+	for (const auto& cmd : commands_ptr_cache) {
+		bool found = false;
+
+		for (const auto& ue4 : ue4_vector) {
+			if (strcmp(cmd.name, ue4.iterator) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			printf("Not found: " CONSOLE_WHITE "%s" CONSOLE_RESET "\n", cmd.name);
+		}
+	}
+}
+
 // Main program entrypoint
 int main(int argc, char* argv[])
 {
@@ -1048,8 +1283,46 @@ int main(int argc, char* argv[])
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-		else if (isUE5v2)
-			printf("Unreal Engine 5.8.0 and newer is currently unsupported.\n");
+		else if (isUE5v2 && (utf_encoding = test2RUN())) {
+			bool FullScan = true;
+			printf("\n----------\nPress A for Full Scan\n");
+			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
+			printf("Press + to Exit\n\n");
+			consoleUpdate(NULL);
+			while (appletMainLoop()) {   
+				padUpdate(&pad);
+
+				u64 kDown = padGetButtonsDown(&pad);
+
+				if (kDown & HidNpadButton_A)
+					break;
+
+				if (kDown & HidNpadButton_Plus) {
+					dmntchtExit();
+					consoleExit(NULL);
+					return 0;
+				}
+				
+				if (kDown & HidNpadButton_X) {
+					FullScan = false;
+					break;
+				}
+			}
+			printf("Searching RAM...\n\n");
+			consoleUpdate(NULL);
+			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
+			getCommandsPointers();
+			searchInAssembly();
+			printf("                                                \n");
+			if (FullScan) SearchFramerate();
+			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
+			printf(CONSOLE_WHITE "Search is finished!\n");
+			consoleUpdate(NULL);
+			svcSleepThread(5llu * 1000 * 1000 * 1000);
+			dumpAsCheats();
+			dumpAsLog();
+			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
+		}
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
@@ -1074,6 +1347,7 @@ int main(int argc, char* argv[])
 
 	// Deinitialize and clean up resources used by the console (important!)
 	ue4_vector.clear();
+	commands_ptr_cache.clear();
 	consoleExit(NULL);
 	return 0;
 
