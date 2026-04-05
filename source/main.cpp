@@ -129,6 +129,7 @@ uint8_t testRUN() {
 	while (i < mappings_count) {
 		if ((memoryInfoBuffers[i].perm & Perm_Rw) == Perm_Rw && memoryInfoBuffers[i].type == MemType_Heap) {
 			if (memoryInfoBuffers[i].size > 200'000'000) {
+				i++;
 				continue;
 			}
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
@@ -167,6 +168,56 @@ uint8_t testRUN() {
 	delete[] utf16_string;
 	delete[] utf32_string;
 	printf("Encoding not detected...");
+	return encoding;
+}
+
+uint8_t test2RUN() { //Only Unreal Engine 5.8.0 or newer
+	size_t i = 0;
+	uint8_t encoding = 0;
+
+	size_t size = utf8_to_utf16(nullptr, (const uint8_t*)UE4settingsArray[0].commandName, 0);
+	char16_t* utf16_string = new char16_t[size+1]();
+	utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)UE4settingsArray[0].commandName, size+1);
+
+	size = utf8_to_utf32(nullptr, (const uint8_t*)UE4settingsArray[0].commandName, 0);
+	char32_t* utf32_string = new char32_t[size+1]();
+	utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)UE4settingsArray[0].commandName, size+1);
+
+	consoleUpdate(NULL);
+
+	while (i < mappings_count) {
+		auto addr = memoryInfoBuffers[i].addr;
+		i++;
+		if (cheatMetadata.main_nso_extents.base == addr) break;
+	}
+	char* buffer_c = new char[memoryInfoBuffers[i].size];
+	dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+	char* result = searchString(buffer_c, (char*)UE4settingsArray[0].commandName, memoryInfoBuffers[i].size);
+	if (result) {
+		printf("Encoding: UTF-8\n");
+		encoding = 8;
+		consoleUpdate(NULL);
+	}
+	if (!encoding) {
+		char16_t* result16 = searchString(buffer_c, utf16_string, memoryInfoBuffers[i].size);
+		if (result16) {
+			printf("Encoding: UTF-16\n");
+			encoding = 16;
+			consoleUpdate(NULL);
+		}
+	}
+	if (!encoding) {
+		char32_t* result32 = searchString(buffer_c, utf32_string, memoryInfoBuffers[i].size);
+		if (result32) {
+			printf("Encoding: UTF-32\n");
+			encoding = 32;
+			consoleUpdate(NULL);
+		}
+	}
+	delete[] buffer_c;
+	delete[] utf16_string;
+	delete[] utf32_string;
+	if (!encoding) printf("Encoding not detected...");
 	return encoding;
 }
 
@@ -1048,7 +1099,7 @@ int main(int argc, char* argv[])
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-		else if (isUE5v2)
+		else if (isUE5v2 && test2RUN())
 			printf("Unreal Engine 5.8.0 and newer is currently unsupported.\n");
 		
 		delete[] memoryInfoBuffers;
