@@ -100,7 +100,7 @@ bool checkIfUE4game() {
 				ue4_sdk = result;
 				isUE5 = true;
 				const char* last_underscore = strrchr(result, '_');
-				if (last_underscore[-2] != '_' || last_underscore[-1] > 7) isUE5v2 = true;
+				if (last_underscore[-2] != '_' || last_underscore[-1] > `7`) isUE5v2 = true;
 				delete[] buffer_c;
 				return true;
 			}
@@ -1049,7 +1049,7 @@ int main(int argc, char* argv[])
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
 		else if (isUE5v2)
-			printf("Unreal Engine 5.8 and newer is currently unsupported.\n");
+			printf("Unreal Engine 5.8.0 and newer is currently unsupported.\n");
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
