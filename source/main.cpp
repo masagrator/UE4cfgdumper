@@ -64,6 +64,7 @@ template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bo
 std::string ue4_sdk = "";
 bool isUE5 = false;
 bool isUE5v2 = false;
+std::pair<uintptr_t, size_t> ue5v2_rodata = {};
 
 size_t checkAvailableHeap() {
 	size_t startSize = 200 * 1024 * 1024;
@@ -190,6 +191,8 @@ uint8_t test2RUN() { //Only Unreal Engine 5.8.0 or newer
 		i++;
 		if (cheatMetadata.main_nso_extents.base == addr) break;
 	}
+	ue5v2_rodata.first = memoryInfoBuffers[i].addr;
+	ue5v2_rodata.second = memoryInfoBuffers[i].size;
 	char* buffer_c = new char[memoryInfoBuffers[i].size];
 	dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 	char* result = searchString(buffer_c, (char*)UE4settingsArray[0].commandName, memoryInfoBuffers[i].size);
@@ -983,6 +986,27 @@ void dumpAsLog() {
 	printf("\n");
 }
 
+std::vector<std::pair<const char*, uintptr_t>> commands_ptr_cache = {};
+
+void getCommandsPointers() {
+	char* buffer_c = new char[ue5v2_rodata.second];
+	dmntchtReadCheatProcessMemory(ue5v2_rodata.first, (void*)buffer_c, ue5v2_rodata.second);
+	for (size_t i = 0; i < UE4settingsArray.size(); i++) {
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE4settingsArray[i].commandName);
+		if (result) {
+			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, (uintptr_t)result);
+		}
+	}
+	for (size_t i = 0; i < UE5settingsArray.size(); i++) {
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5settingsArray[i].commandName);
+		if (result) {
+			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, (uintptr_t)result);
+		}
+	}
+	delete[] buffer_c;
+	return;
+}
+
 // Main program entrypoint
 int main(int argc, char* argv[])
 {
@@ -1099,8 +1123,45 @@ int main(int argc, char* argv[])
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-		else if (isUE5v2 && test2RUN())
-			printf("Unreal Engine 5.8.0 and newer is currently unsupported.\n");
+		else if (isUE5v2 && test2RUN()) {
+			bool FullScan = true;
+			printf("\n----------\nPress A for Full Scan\n");
+			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
+			printf("Press + to Exit\n\n");
+			consoleUpdate(NULL);
+			while (appletMainLoop()) {   
+				padUpdate(&pad);
+
+				u64 kDown = padGetButtonsDown(&pad);
+
+				if (kDown & HidNpadButton_A)
+					break;
+
+				if (kDown & HidNpadButton_Plus) {
+					dmntchtExit();
+					consoleExit(NULL);
+					return 0;
+				}
+				
+				if (kDown & HidNpadButton_X) {
+					FullScan = false;
+					break;
+				}
+			}
+			printf("Searching RAM...\n\n");
+			consoleUpdate(NULL);
+			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
+			searchDescriptionsInRAM();
+			searchDescriptionsInRAM_UE5();
+			printf("                                                \n");
+			if (FullScan) SearchFramerate();
+			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
+			printf(CONSOLE_WHITE "Search is finished!\n");
+			consoleUpdate(NULL);
+			dumpAsCheats();
+			dumpAsLog();
+			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
+		}
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
