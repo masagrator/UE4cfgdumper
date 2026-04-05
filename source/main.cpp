@@ -1194,7 +1194,7 @@ int main(int argc, char* argv[])
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
-		else if (isUE5v2 && test2RUN()) {
+		else if (isUE5v2 && (utf_encoding = test2RUN())) {
 			bool FullScan = true;
 			printf("\n----------\nPress A for Full Scan\n");
 			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
