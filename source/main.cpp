@@ -63,6 +63,7 @@ template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bo
 
 std::string ue4_sdk = "";
 bool isUE5 = false;
+bool isUE5v2 = false;
 
 size_t checkAvailableHeap() {
 	size_t startSize = 200 * 1024 * 1024;
@@ -98,6 +99,8 @@ bool checkIfUE4game() {
 				printf("%s\n", result);
 				ue4_sdk = result;
 				isUE5 = true;
+				const char* last_underscore = strrchr(result, '_');
+				if (last_underscore[-2] != '_' || last_underscore[-1] > 7) isUE5v2 = true;
 				delete[] buffer_c;
 				return true;
 			}
@@ -1005,8 +1008,8 @@ int main(int argc, char* argv[])
 			printf("dmntchtGetCheatProcessMappings ret: 0x%x\n", res);
 
 		//Test run
-
-		if (checkIfUE4game() && (utf_encoding = testRUN())) {
+		
+		if (checkIfUE4game() && !isUE5v2 && (utf_encoding = testRUN())) {
 			bool FullScan = true;
 			printf("\n----------\nPress A for Full Scan\n");
 			printf("Press X for Base Scan (it excludes FixedFrameRate and CustomTimeStep)\n");
@@ -1045,6 +1048,8 @@ int main(int argc, char* argv[])
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
 		}
+		else if (isUE5v2)
+			printf("Unreal Engine 5.8 and newer is currently unsupported.\n");
 		
 		delete[] memoryInfoBuffers;
 		dmntchtExit();
