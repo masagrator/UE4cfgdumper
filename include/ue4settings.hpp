@@ -373,3 +373,8 @@ std::unordered_map<std::string, std::string> UE5DeprecatedUE4Settings = {
 	{"r.BasePassOutputsVelocity", 			"Use r.VelocityOutputPass instead."},
 	{"r.VertexDeformationOutputsVelocity",	"Use r.Velocity.EnableVertexDeformation instead."}
 };
+
+std::array UE5_8_ExclusiveCommands = {
+	UESetting{"r.Fog", "", 1},
+	UESetting{"r.SubsurfaceScattering", "", 1}
+};
