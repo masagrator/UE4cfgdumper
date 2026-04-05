@@ -986,7 +986,14 @@ void dumpAsLog() {
 	printf("\n");
 }
 
-std::vector<std::pair<const char*, uintptr_t>> commands_ptr_cache = {};
+struct vector_setting {
+	const char* name;
+	ptrdiff_t offset;
+	bool isFloat;
+};
+
+std::vector<vector_setting> commands_ptr_cache = {};
+bool* found = 0;
 
 void getCommandsPointers() {
 	char* buffer_c = new char[ue5v2_rodata.second];
@@ -994,17 +1001,81 @@ void getCommandsPointers() {
 	for (size_t i = 0; i < UE4settingsArray.size(); i++) {
 		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE4settingsArray[i].commandName);
 		if (result) {
-			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, (uintptr_t)result);
+			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, (uintptr_t)result - (uintptr_t)buffer_c, UE4settingsArray[i].type == 2);
 		}
 	}
 	for (size_t i = 0; i < UE5settingsArray.size(); i++) {
 		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5settingsArray[i].commandName);
 		if (result) {
-			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, (uintptr_t)result);
+			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, (uintptr_t)result - (uintptr_t)buffer_c, UE5settingsArray[i].type == 2);
 		}
 	}
 	delete[] buffer_c;
+	if (commands_ptr_cache.size() > 0) found = new bool[commands_ptr_cache.size()]();
+	else printf("No command was found in rodata of main!\n");
 	return;
+}
+
+void searchInAssembly() {
+	if (commands_ptr_cache.size() == 0) return;
+	uintptr_t addr = cheatMetadata.main_nso_extents.base;
+	size_t i = 0;
+	while (i < mappings_count) {
+		if (addr == memoryInfoBuffers[i].addr) break;
+		i++;
+	}
+	uint32_t* buffer_c = new uint32_t[memoryInfoBuffers[i].size / 4];
+	dmntchtReadCheatProcessMemory(addr, (void*)buffer_c, memoryInfoBuffers[i].size);
+	ad_insn *insn = NULL;
+	size_t x = 0;
+	for (; x < (memoryInfoBuffers[i].size / 4); x++) {
+		ArmadilloDisassemble(buffer_c[x], x * 4, &insn);
+		if (insn->instr_id != AD_INSTR_ADRP || insn->operands[0].op_reg.rn != 2) {
+			ArmadilloDone(&insn);
+			continue;
+		}
+		x++;
+		ad_insn *insn2 = NULL;
+		ArmadilloDisassemble(buffer_c[x], x * 4, &insn2);
+		if (insn2->instr_id != AD_INSTR_ADD || insn2->operands[0].op_reg.rn != 2 || insn2->operands[1].op_reg.rn != 2) {
+			ArmadilloDone(&insn);
+			ArmadilloDone(&insn2);
+			continue;
+		}
+		ad_insn *insn3 = NULL;
+		ArmadilloDisassemble(buffer_c[x-3], (x-3) * 4, &insn3);
+		if (insn3->instr_id != AD_INSTR_ADRP || insn3->operands[0].op_reg.rn != 0) {
+			ArmadilloDone(&insn);
+			ArmadilloDone(&insn2);
+			ArmadilloDone(&insn3);
+			continue;
+		}
+		ad_insn *insn4 = NULL;
+		ArmadilloDisassemble(buffer_c[x-2], (x-2) * 4, &insn4);
+		if (insn4->instr_id != AD_INSTR_ADD || insn4->operands[0].op_reg.rn != 0 || insn4->operands[1].op_reg.rn != 0) {
+			ArmadilloDone(&insn);
+			ArmadilloDone(&insn2);
+			ArmadilloDone(&insn3);
+			ArmadilloDone(&insn4);
+			continue;
+		}
+		ptrdiff_t string_main_offset = (ptrdiff_t)insn->operands[1].op_imm.bits +  insn2->operands[2].op_imm.bits;
+		ptrdiff_t ptrstruct_main_offset = (ptrdiff_t)insn3->operands[1].op_imm.bits +  insn4->operands[2].op_imm.bits;
+		ArmadilloDone(&insn);
+		ArmadilloDone(&insn2);
+		ArmadilloDone(&insn3);
+		ArmadilloDone(&insn4);
+
+		auto it = std::find_if(commands_ptr_cache.begin(), commands_ptr_cache.end(), [&](const vector_setting& entry) {
+			return entry.offset == string_main_offset;
+		});
+
+		if (it != commands_ptr_cache.end()) {
+			printf(CONSOLE_GREEN "*" CONSOLE_RESET "Main offset: " CONSOLE_YELLOW "0x%lX" CONSOLE_RESET", cmd: " CONSOLE_YELLOW "%s\n" CONSOLE_RESET, it->offset, it->name);
+			if (it->isFloat == false) ue4_vector.emplace_back(it->name, false, 0, 0.0, it->offset, 0);
+			else ue4_vector.emplace_back(it->name, false, 0, 0.0, it->offset, 0);
+		}
+	}
 }
 
 // Main program entrypoint
@@ -1151,8 +1222,8 @@ int main(int argc, char* argv[])
 			printf("Searching RAM...\n\n");
 			consoleUpdate(NULL);
 			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
-			searchDescriptionsInRAM();
-			searchDescriptionsInRAM_UE5();
+			getCommandsPointers();
+			searchInAssembly();
 			printf("                                                \n");
 			if (FullScan) SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
