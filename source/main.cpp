@@ -271,13 +271,13 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 											int data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("int: " CONSOLE_YELLOW "%d\n" CONSOLE_RESET, data);
-											ue4_vector.push_back({commandName, false, data, 0.0, main_offset, 0});
+											ue4_vector.emplace_back(commandName, false, data, 0.0, main_offset, 0);
 										}
 										else if (type == 2) {
 											float data = 0;
 											dmntchtReadCheatProcessMemory(pointer, (void*)&data, 4);
 											printf("float: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, data);
-											ue4_vector.push_back({commandName, true, 0, data, main_offset, 0});
+											ue4_vector.emplace_back(commandName, true, 0, data, main_offset, 0);
 										}
 										else {
 											printf("Unknown type: %d\n", type);
@@ -304,23 +304,23 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 	return false;
 }
 
-char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* description) {
+char* findStringInBuffer(char* buffer_c, size_t buffer_size, const char* description, bool checkWithNull = false) {
 	char* result = 0;
 	if (utf_encoding == 8) {
-		result = (char*)searchString(buffer_c, (char*)description, buffer_size);
+		result = (char*)searchString(buffer_c, (char*)description, buffer_size, checkWithNull, checkWithNull);
 	}
 	else if (utf_encoding == 16) {
 		size_t size = utf8_to_utf16(nullptr, (const uint8_t*)description, 0);
 		char16_t* utf16_string = new char16_t[size+1]();
 		utf8_to_utf16((uint16_t*)utf16_string, (const uint8_t*)description, size+1);
-		result = (char*)searchString(buffer_c, utf16_string, buffer_size);
+		result = (char*)searchString(buffer_c, utf16_string, buffer_size, checkWithNull, checkWithNull);
 		delete[] utf16_string;
 	}
 	else {
 		size_t size = utf8_to_utf32(nullptr, (const uint8_t*)description, 0);
 		char32_t* utf32_string = new char32_t[size+1]();
 		utf8_to_utf32((uint32_t*)utf32_string, (const uint8_t*)description, size+1);
-		result = (char*)searchString(buffer_c, utf32_string, buffer_size);
+		result = (char*)searchString(buffer_c, utf32_string, buffer_size, checkWithNull, checkWithNull);
 		delete[] utf32_string;
 	}
 	return result;
@@ -610,13 +610,13 @@ void SearchFramerate() {
 							float FixedFrameRate = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset, (void*)&FixedFrameRate, 4);
 							printf("FixedFrameRate: " CONSOLE_YELLOW "%.4f\n" CONSOLE_RESET, FixedFrameRate);
-							ue4_vector.push_back({"FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4});
+							ue4_vector.emplace_back("FixedFrameRate", true, (int)bitflags, FixedFrameRate, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset - 4);
 						}
 						if (offset2) {
 							int CustomTimeStep = 0;
 							dmntchtReadCheatProcessMemory(GameEngine + offset2, (void*)&CustomTimeStep, 4);
 							printf("CustomTimeStep: " CONSOLE_YELLOW "0x%x\n" CONSOLE_RESET, CustomTimeStep);
-							ue4_vector.push_back({"CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2});
+							ue4_vector.emplace_back("CustomTimeStep", false, CustomTimeStep, 0, (uint32_t)(GameEngine_ptr - cheatMetadata.main_nso_extents.base), offset2);
 						}
 					}
 					else {
@@ -1005,7 +1005,7 @@ void getCommandsPointers() {
 	for (size_t i = 0; i < array_size; i++) {
 		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE4settingsArray[i].commandName);
 		consoleUpdate(NULL);
-		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE4settingsArray[i].commandName);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE4settingsArray[i].commandName, true);
 		if (result) {
 			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
 			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, memory_offset, UE4settingsArray[i].type == 2);
@@ -1019,7 +1019,7 @@ void getCommandsPointers() {
 	for (size_t i = 0; i < array_size; i++) {
 		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE5settingsArray[i].commandName);
 		consoleUpdate(NULL);
-		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5settingsArray[i].commandName);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5settingsArray[i].commandName, true);
 		if (result) {
 			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
 			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, memory_offset, UE5settingsArray[i].type == 2);
@@ -1027,6 +1027,20 @@ void getCommandsPointers() {
 		else {
 			printf("                                                                                \r");
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
+		}
+	}
+	array_size = UE5_8_ExclusiveCommands.size();
+	for (size_t i = 0; i < array_size; i++) {
+		printf("Searching %ld/%ld, cmd: %s\r", i, array_size, UE5_8_ExclusiveCommands[i].commandName);
+		consoleUpdate(NULL);
+		auto result = findStringInBuffer(buffer_c, ue5v2_rodata.second, UE5_8_ExclusiveCommands[i].commandName, true);
+		if (result) {
+			ptrdiff_t memory_offset = rodata_offset + ((uintptr_t)result - (uintptr_t)buffer_c);
+			commands_ptr_cache.emplace_back(UE5_8_ExclusiveCommands[i].commandName, memory_offset, UE5_8_ExclusiveCommands[i].type == 2);
+		}
+		else {
+			printf("                                                                                \r");
+			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE5_8_ExclusiveCommands[i].commandName);
 		}
 	}
 	printf("                                                                                \r");
@@ -1136,6 +1150,21 @@ void searchInAssembly() {
 		}
 	}
 	delete[] buffer_c;
+	
+	for (const auto& cmd : commands_ptr_cache) {
+		bool found = false;
+
+		for (const auto& ue4 : ue4_vector) {
+			if (strcmp(cmd.name, ue4.iterator) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			printf("Not found: " CONSOLE_WHITE "%s" CONSOLE_RESET "\n", cmd.name);
+		}
+	}
 }
 
 // Main program entrypoint
