@@ -43,6 +43,10 @@ bool isServiceRunning(const char *serviceName) {
 	}
 }
 
+inline void consoleClearLine() {
+	printf("                                                                                \r");
+}
+
 template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bool null_terminated = false, bool whole = false) {
 	char* buffer_end = &buffer[buffer_size];
 	size_t string_len = (std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)) * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>);
@@ -1011,7 +1015,7 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, memory_offset, UE4settingsArray[i].type == 2);
 		}
 		else {
-			printf("                                                                                \r");
+			consoleClearLine();
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
 		}
 	}
@@ -1025,7 +1029,7 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, memory_offset, UE5settingsArray[i].type == 2);
 		}
 		else {
-			printf("                                                                                \r");
+			consoleClearLine();
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
 		}
 	}
@@ -1039,11 +1043,11 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE5_8_ExclusiveCommands[i].commandName, memory_offset, UE5_8_ExclusiveCommands[i].type == 2);
 		}
 		else {
-			printf("                                                                                \r");
+			consoleClearLine();
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE5_8_ExclusiveCommands[i].commandName);
 		}
 	}
-	printf("                                                                                \r");
+	consoleClearLine();
 	delete[] buffer_c;
 	if (commands_ptr_cache.size() == 0) {
 		printf("No command was found in rodata of main!\n");
