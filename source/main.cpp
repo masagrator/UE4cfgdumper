@@ -1322,7 +1322,7 @@ int main(int argc, char* argv[])
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
-			svcSleepThread(5llu * 1000 * 1000 * 1000);
+			//svcSleepThread(5llu * 1000 * 1000 * 1000);
 			dumpAsCheats();
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
