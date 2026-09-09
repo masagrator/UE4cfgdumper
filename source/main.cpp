@@ -110,7 +110,7 @@ bool checkIfUE4game() {
 				delete[] buffer_c;
 				return true;
 			}
-			// For now there is no difference it seems between 5 and 6
+			// For now there is no difference it seems between 5.8 and 6
 			result = searchString(buffer_c, (char*)test_6, memoryInfoBuffers[i].size);
 			if (result) {
 				printf("%s\n", result);
