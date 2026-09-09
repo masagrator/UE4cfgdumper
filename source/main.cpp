@@ -16,6 +16,10 @@ extern "C" {
 #include "strext.h"
 }
 
+inline void consoleClearLine() {
+	printf("                                                                                \r");
+}
+
 DmntCheatProcessMetadata cheatMetadata = {0};
 u64 mappings_count = 0;
 MemoryInfo* memoryInfoBuffers = 0;
@@ -692,7 +696,7 @@ void searchDescriptionsInRAM() {
 		}
 		i++;
 	}
-	printf("                                                \n");
+	consoleClearLine();
 	for (size_t x = 0; x < UE4settingsArray.size(); x++) {
 		if (!UE4checkedList[x]) {
 			if (isUE5) {
@@ -854,7 +858,7 @@ void searchDescriptionsInRAM_UE5() {
 		}
 		i++;
 	}
-	printf("                                                \n");
+	consoleClearLine();
 	for (size_t x = 0; x < UE5settingsArray.size(); x++) {
 		if (UE5alternativeDescriptions1.contains(UE5settingsArray[x].commandName)) {
 			i = 0;
@@ -1285,7 +1289,7 @@ int main(int argc, char* argv[])
 			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 			searchDescriptionsInRAM();
 			if (isUE5) searchDescriptionsInRAM_UE5();
-			printf("                                                \n");
+			consoleClearLine();
 			if (FullScan) SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
@@ -1324,12 +1328,12 @@ int main(int argc, char* argv[])
 			appletSetCpuBoostMode(ApmCpuBoostMode_FastLoad);
 			getCommandsPointers();
 			searchInAssembly();
-			printf("                                                \n");
+			consoleClearLine();
 			if (FullScan) SearchFramerate();
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
-			svcSleepThread(5llu * 1000 * 1000 * 1000);
+			//svcSleepThread(5llu * 1000 * 1000 * 1000);
 			dumpAsCheats();
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
