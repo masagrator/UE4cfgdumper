@@ -43,10 +43,6 @@ bool isServiceRunning(const char *serviceName) {
 	}
 }
 
-inline void consoleClearLine() {
-	printf("                                                                                \r");
-}
-
 template <typename T> T searchString(char* buffer, T string, u64 buffer_size, bool null_terminated = false, bool whole = false) {
 	char* buffer_end = &buffer[buffer_size];
 	size_t string_len = (std::char_traits<std::remove_pointer_t<std::remove_reference_t<T>>>::length(string) + (null_terminated ? 1 : 0)) * sizeof(std::remove_pointer_t<std::remove_reference_t<T>>);
@@ -90,6 +86,7 @@ bool checkIfUE4game() {
 			}
 			char test_4[] = "SDK MW+EpicGames+UnrealEngine-4";
 			char test_5[] = "SDK MW+EpicGames+UnrealEngine-5";
+			char test_6[] = "SDK MW+EpicGames+UnrealEngine-6";
 			char* buffer_c = new char[memoryInfoBuffers[i].size];
 			dmntchtReadCheatProcessMemory(memoryInfoBuffers[i].addr, (void*)buffer_c, memoryInfoBuffers[i].size);
 			char* result = searchString(buffer_c, (char*)test_4, memoryInfoBuffers[i].size);
@@ -109,11 +106,21 @@ bool checkIfUE4game() {
 				delete[] buffer_c;
 				return true;
 			}
+			// For now there is no difference it seems between 5 and 6
+			result = searchString(buffer_c, (char*)test_6, memoryInfoBuffers[i].size);
+			if (result) {
+				printf("%s\n", result);
+				ue4_sdk = result;
+				isUE5 = true;
+				isUE5v2 = true;
+				delete[] buffer_c;
+				return true;
+			}
 			delete[] buffer_c;
 		}
 		i++;
 	}
-	printf("This game is not using Unreal Engine 4 or 5!\n");
+	printf("This game is not using Unreal Engine 4-6!\n");
 	return false;
 }
 
@@ -1015,7 +1022,7 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE4settingsArray[i].commandName, memory_offset, UE4settingsArray[i].type == 2);
 		}
 		else {
-			consoleClearLine();
+			printf("                                                                                \r");
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
 		}
 	}
@@ -1029,7 +1036,7 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE5settingsArray[i].commandName, memory_offset, UE5settingsArray[i].type == 2);
 		}
 		else {
-			consoleClearLine();
+			printf("                                                                                \r");
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE4settingsArray[i].commandName);
 		}
 	}
@@ -1043,11 +1050,11 @@ void getCommandsPointers() {
 			commands_ptr_cache.emplace_back(UE5_8_ExclusiveCommands[i].commandName, memory_offset, UE5_8_ExclusiveCommands[i].type == 2);
 		}
 		else {
-			consoleClearLine();
+			printf("                                                                                \r");
 			printf("Not found " CONSOLE_WHITE "%s" CONSOLE_RESET"!\n", UE5_8_ExclusiveCommands[i].commandName);
 		}
 	}
-	consoleClearLine();
+	printf("                                                                                \r");
 	delete[] buffer_c;
 	if (commands_ptr_cache.size() == 0) {
 		printf("No command was found in rodata of main!\n");
@@ -1322,7 +1329,7 @@ int main(int argc, char* argv[])
 			printf(CONSOLE_BLUE "\n---------------------------------------------\n\n" CONSOLE_RESET);
 			printf(CONSOLE_WHITE "Search is finished!\n");
 			consoleUpdate(NULL);
-			//svcSleepThread(5llu * 1000 * 1000 * 1000);
+			svcSleepThread(5llu * 1000 * 1000 * 1000);
 			dumpAsCheats();
 			dumpAsLog();
 			appletSetCpuBoostMode(ApmCpuBoostMode_Normal);
