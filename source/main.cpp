@@ -106,7 +106,7 @@ bool checkIfUE4game() {
 				ue4_sdk = result;
 				isUE5 = true;
 				const char* last_underscore = strrchr(result, '_');
-				if (last_underscore[-2] != '_' || last_underscore[-1] >= '8') isUE5v2 = true;
+				if (last_underscore[-1] >= '8') isUE5v2 = true;
 				delete[] buffer_c;
 				return true;
 			}
