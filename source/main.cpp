@@ -86,6 +86,7 @@ bool checkIfUE4game() {
 	while (i < mappings_count) {
 		if ((memoryInfoBuffers[i].perm & Perm_R) == Perm_R && (memoryInfoBuffers[i].perm & Perm_Rx) != Perm_Rx && memoryInfoBuffers[i].type == MemType_CodeStatic) {
 			if (memoryInfoBuffers[i].size > 200'000'000) {
+				i++;
 				continue;
 			}
 			char test_4[] = "SDK MW+EpicGames+UnrealEngine-4";
@@ -265,6 +266,7 @@ bool searchPointerInMappings(uint64_t string_address, const char* commandName, u
 				while (l < mappings_count) {
 					if ((memoryInfoBuffers[l].perm & Perm_Rw) == Perm_Rw && (memoryInfoBuffers[l].type == MemType_CodeMutable || memoryInfoBuffers[l].type == MemType_CodeWritable)) {
 						if (memoryInfoBuffers[l].size > 200'000'000) {
+							l++;
 							continue;
 						}
 						buffer_u = new uint64_t[memoryInfoBuffers[l].size / sizeof(uint64_t)];
@@ -1067,6 +1069,63 @@ void getCommandsPointers() {
 	return;
 }
 
+static inline bool insnIsADRP(uint32_t insn) { return (insn & 0x9F000000) == 0x90000000; }
+static inline bool insnIsADDimm64(uint32_t insn) { return (insn & 0xFF800000) == 0x91000000; }
+static inline bool insnIsMOVreg64(uint32_t insn) { return (insn & 0xFFE0FFE0) == 0xAA0003E0; } // orr xd, xzr, xm
+static inline bool insnIsLDRimm64(uint32_t insn) { return (insn & 0xFFC00000) == 0xF9400000; } // ldr xt, [xn, #imm]
+static inline bool insnIsBL(uint32_t insn) { return (insn & 0xFC000000) == 0x94000000; }
+static inline bool insnIsBLR(uint32_t insn) { return (insn & 0xFFFFFC1F) == 0xD63F0000; }
+static inline bool insnIsStore(uint32_t insn) { return (insn & 0x0A000000) == 0x08000000 && !((insn >> 22) & 1); }
+static inline uint8_t insnRd(uint32_t insn) { return insn & 0x1F; }
+static inline uint8_t insnRn(uint32_t insn) { return (insn >> 5) & 0x1F; }
+
+static inline uint64_t decodeADRP(uint32_t insn, uint64_t pc) {
+	int64_t imm = (int64_t)((((insn >> 5) & 0x7FFFF) << 2) | ((insn >> 29) & 3));
+	if (imm & (1 << 20)) imm -= (1 << 21);
+	return (pc & ~0xFFFull) + (imm << 12);
+}
+
+static inline uint64_t decodeADDimm(uint32_t insn) {
+	uint64_t imm = (insn >> 10) & 0xFFF;
+	return ((insn >> 22) & 1) ? (imm << 12) : imm;
+}
+
+static uint64_t resolveRegisterValue(const uint32_t* code, size_t code_count, size_t pos, uint8_t reg, int depth = 0) {
+	if (depth > 4 || reg == 31) return 0;
+	const size_t window = 16;
+	size_t limit = (pos > window) ? pos - window : 0;
+	for (size_t k = pos; k-- > limit;) {
+		uint32_t insn = code[k];
+		if (insnIsBL(insn) || insnIsBLR(insn)) {
+			// Only callee-saved registers survive a call
+			if (reg < 19 || reg > 28) return 0;
+			continue;
+		}
+		if (insnIsStore(insn)) continue;
+		if (insnRd(insn) != reg) continue;
+		if (insnIsADRP(insn)) 
+			return decodeADRP(insn, k * 4);
+		if (insnIsADDimm64(insn)) {
+			uint64_t base = resolveRegisterValue(code, code_count, k, insnRn(insn), depth + 1);
+			return base ? base + decodeADDimm(insn) : 0;
+		}
+		if (insnIsMOVreg64(insn))
+			return resolveRegisterValue(code, code_count, k, (insn >> 16) & 0x1F, depth + 1);
+		if (insnIsLDRimm64(insn)) {
+			uint64_t base = resolveRegisterValue(code, code_count, k, insnRn(insn), depth + 1);
+			if (!base) return 0;
+			uint64_t pointer = 0;
+			dmntchtReadCheatProcessMemory(cheatMetadata.main_nso_extents.base + base + (((insn >> 10) & 0xFFF) << 3), &pointer, 8);
+			if (pointer < cheatMetadata.main_nso_extents.base || pointer >= cheatMetadata.main_nso_extents.base + cheatMetadata.main_nso_extents.size)
+				return 0;
+			return pointer - cheatMetadata.main_nso_extents.base;
+		}
+		// Register overwritten by something we don't track
+		return 0;
+	}
+	return 0;
+}
+
 void searchInAssembly() {
 	if (commands_ptr_cache.size() == 0) return;
 	printf("Searching in Assembly...\n");
@@ -1079,71 +1138,42 @@ void searchInAssembly() {
 	}
 	uint32_t* buffer_c = new uint32_t[memoryInfoBuffers[i].size / 4];
 	dmntchtReadCheatProcessMemory(addr, (void*)buffer_c, memoryInfoBuffers[i].size);
-	ad_insn *insn = NULL;
 	size_t x = 0;
 	size_t amount_of_instructions = memoryInfoBuffers[i].size / 4;
 	printf("To check: %ld instructions.\n", amount_of_instructions);
 	consoleUpdate(NULL);
-	for (; x < amount_of_instructions; x++) {
-		if ((buffer_c[x] & 0x9F000000) != 0x90000000)
+	for (; x + 1 < amount_of_instructions; x++) {
+		if ((buffer_c[x] & 0x9F00001F) != 0x90000002)
 			continue;
 		if (x % 0x1000 == 0) {
 			printf("Checked %ld %%\r", (x*100) / amount_of_instructions);
 			consoleUpdate(NULL);			
 		}
-		ArmadilloDisassemble(buffer_c[x], x * 4, &insn);
-		if (insn->instr_id != AD_INSTR_ADRP || insn->operands[0].op_reg.rn != 2) {
-			ArmadilloDone(&insn);
+		// add x2, x2, #imm
+		uint32_t add_insn = buffer_c[x+1];
+		if (!insnIsADDimm64(add_insn) || insnRd(add_insn) != 2 || insnRn(add_insn) != 2)
 			continue;
-		}
+		ptrdiff_t string_main_offset = (ptrdiff_t)(decodeADRP(buffer_c[x], x * 4) + decodeADDimm(add_insn));
 		x++;
-		ad_insn *insn2 = NULL;
-		ArmadilloDisassemble(buffer_c[x], x * 4, &insn2);
-		if (insn2->instr_id != AD_INSTR_ADD || insn2->operands[0].op_reg.rn != 2 || insn2->operands[1].op_reg.rn != 2) {
-			ArmadilloDone(&insn);
-			ArmadilloDone(&insn2);
-			continue;
-		}
-		ptrdiff_t string_main_offset = (ptrdiff_t)insn->operands[1].op_imm.bits + insn2->operands[2].op_imm.bits;
-		ptrdiff_t ptrstruct_main_offset = 0;
-		ArmadilloDone(&insn);
-		ArmadilloDone(&insn2);
-		int y = -2;
-		bool wasADRP = false;
-		for (; y >= -3; y--) {
-			ArmadilloDisassemble(buffer_c[x+y], (x+y) * 4, &insn);
-			if (insn->instr_id == AD_INSTR_ADRP && insn->operands[0].op_reg.rn == 0) {
-				ptrstruct_main_offset = insn->operands[1].op_imm.bits;
-				ArmadilloDone(&insn);
-				wasADRP = true;
-				break;
-			}
-			if (insn->instr_id == AD_INSTR_ADD && insn->operands[0].op_reg.rn == 0 && insn->operands[1].op_reg.rn == 0) {
-				ptrstruct_main_offset = insn->operands[2].op_imm.bits;
-				ArmadilloDone(&insn);
-				break;
-			}
-			ArmadilloDone(&insn);
-		}
-		if (ptrstruct_main_offset == 0) {
-			continue;
-		}
-		if (wasADRP == false) {
-			y--;
-			ArmadilloDisassemble(buffer_c[x+y], (x+y) * 4, &insn);
-			if (insn->instr_id != AD_INSTR_ADRP || insn->operands[0].op_reg.rn != 0) {
-				ArmadilloDone(&insn);
-				continue;
-			}
-			ptrstruct_main_offset += insn->operands[1].op_imm.bits;
-			ArmadilloDone(&insn);
-		}
 
 		auto it = std::find_if(commands_ptr_cache.begin(), commands_ptr_cache.end(), [&](const vector_setting& entry) {
 			return entry.offset == string_main_offset;
 		});
+		if (it == commands_ptr_cache.end())
+			continue;
 
-		if (it != commands_ptr_cache.end()) {
+		ptrdiff_t ptrstruct_main_offset = 0;
+		for (size_t k = x + 1; k < amount_of_instructions && k <= x + 12; k++) {
+			if (insnIsBL(buffer_c[k])) {
+				ptrstruct_main_offset = resolveRegisterValue(buffer_c, amount_of_instructions, k, 0);
+				break;
+			}
+		}
+		if (ptrstruct_main_offset == 0) {
+			continue;
+		}
+
+		{
 			ptrstruct_main_offset += 0x10;
 			
 			uintptr_t address = 0;
