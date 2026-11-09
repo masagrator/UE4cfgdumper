@@ -2,3 +2,5 @@
 Tool that finds automatically RAM offsets for graphics settings in Unreal Engine 4, 5 & 6 games
 
 Run any game, wait for it to show main menu, then run this app. 
+
+Claude was used to add and fix some stuff.
