@@ -1069,6 +1069,15 @@ void getCommandsPointers() {
 	return;
 }
 
+// --- Minimal AArch64 decoding helpers used to resolve the "this" pointer (x0)
+// passed to the console variable constructor. Different builds of the same
+// engine version emit different instruction sequences for it, e.g.:
+//   adrp x0, page / add x0, x0, #off              (direct)
+//   adrp x20, page / add x20, x20, #off / ... / mov x0, x20   (hoisted to callee-saved reg)
+//   adrp x21, page / ldr x21, [x21, #got] / ... / mov x0, x21 (loaded through GOT)
+// so instead of matching fixed positions we track the value of x0 backwards
+// from the constructor call.
+
 static inline bool insnIsADRP(uint32_t insn) { return (insn & 0x9F000000) == 0x90000000; }
 static inline bool insnIsADDimm64(uint32_t insn) { return (insn & 0xFF800000) == 0x91000000; }
 static inline bool insnIsMOVreg64(uint32_t insn) { return (insn & 0xFFE0FFE0) == 0xAA0003E0; } // orr xd, xzr, xm
@@ -1090,21 +1099,40 @@ static inline uint64_t decodeADDimm(uint32_t insn) {
 	return ((insn >> 22) & 1) ? (imm << 12) : imm;
 }
 
+static inline bool insnIsADR(uint32_t insn) { return (insn & 0x9F000000) == 0x10000000; }
+static inline bool insnIsRET(uint32_t insn) { return (insn & 0xFFFFFC1F) == 0xD65F0000; }
+
+static inline uint64_t decodeADR(uint32_t insn, uint64_t pc) {
+	int64_t imm = (int64_t)((((insn >> 5) & 0x7FFFF) << 2) | ((insn >> 29) & 3));
+	if (imm & (1 << 20)) imm -= (1 << 21);
+	return pc + imm;
+}
+
+// Returns main-relative offset held by register "reg" right before instruction index "pos",
+// or 0 if it couldn't be resolved.
+// Callee-saved registers (x19-x28) are often used as a base for a whole block of
+// CVars (e.g. "add x0, x19, #0x240") and set up hundreds of instructions earlier
+// in the same static initializer, so for them we look much further back
+// (stopping at the end of the previous function).
 static uint64_t resolveRegisterValue(const uint32_t* code, size_t code_count, size_t pos, uint8_t reg, int depth = 0) {
 	if (depth > 4 || reg == 31) return 0;
-	const size_t window = 16;
+	const bool calleeSaved = (reg >= 19 && reg <= 28);
+	const size_t window = calleeSaved ? 0x4000 : 16;
 	size_t limit = (pos > window) ? pos - window : 0;
 	for (size_t k = pos; k-- > limit;) {
 		uint32_t insn = code[k];
+		if (insnIsRET(insn)) return 0;
 		if (insnIsBL(insn) || insnIsBLR(insn)) {
 			// Only callee-saved registers survive a call
-			if (reg < 19 || reg > 28) return 0;
+			if (!calleeSaved) return 0;
 			continue;
 		}
 		if (insnIsStore(insn)) continue;
 		if (insnRd(insn) != reg) continue;
 		if (insnIsADRP(insn)) 
 			return decodeADRP(insn, k * 4);
+		if (insnIsADR(insn))
+			return decodeADR(insn, k * 4);
 		if (insnIsADDimm64(insn)) {
 			uint64_t base = resolveRegisterValue(code, code_count, k, insnRn(insn), depth + 1);
 			return base ? base + decodeADDimm(insn) : 0;
@@ -1143,6 +1171,7 @@ void searchInAssembly() {
 	printf("To check: %ld instructions.\n", amount_of_instructions);
 	consoleUpdate(NULL);
 	for (; x + 1 < amount_of_instructions; x++) {
+		// adrp x2, page
 		if ((buffer_c[x] & 0x9F00001F) != 0x90000002)
 			continue;
 		if (x % 0x1000 == 0) {
@@ -1162,6 +1191,7 @@ void searchInAssembly() {
 		if (it == commands_ptr_cache.end())
 			continue;
 
+		// Find constructor call and resolve x0 at that point
 		ptrdiff_t ptrstruct_main_offset = 0;
 		for (size_t k = x + 1; k < amount_of_instructions && k <= x + 12; k++) {
 			if (insnIsBL(buffer_c[k])) {
